@@ -452,6 +452,7 @@ class SoundGrid(QWidget):
                 s for s in self.app_controller.config.sounds if s is not sound
             ]
             self.app_controller.save_config()
+            self.app_controller.reload_hotkeys()
             self.refresh()
             self.app_controller.main_window.shortcut_editor.refresh()
 
