@@ -86,6 +86,15 @@ class HotkeyManager:
             self._callbacks.clear()
         self._backend.stop()
 
+    def suspend(self):
+        """Temporarily stop listening without clearing shortcuts."""
+        self._backend.stop()
+
+    def resume(self):
+        """Resume listening after a suspend (no-op if not started)."""
+        if self._running:
+            self._apply()
+
     def start(self):
         """Enable hotkey listening.  Call before or after set_shortcuts."""
         self._running = True

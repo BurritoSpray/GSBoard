@@ -1,7 +1,7 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QFormLayout, QLabel,
     QComboBox, QSlider, QPushButton, QCheckBox, QLineEdit,
-    QFileDialog, QGroupBox, QSpinBox, QScrollArea
+    QFileDialog, QGroupBox, QSpinBox, QScrollArea, QMessageBox
 )
 from gsboard.ui.shortcut_editor import ShortcutCaptureButton
 from PyQt6.QtCore import Qt
@@ -92,10 +92,16 @@ class SettingsPanel(QWidget):
         self._monitor_check = QCheckBox("Hear sounds in my headset (monitor loopback)")
         vol_form.addRow(self._monitor_check)
 
-        self._loopback_shortcut_btn = ShortcutCaptureButton()
+        self._loopback_shortcut_btn = ShortcutCaptureButton(
+            on_open=self.app_controller.hotkey_manager.suspend,
+            on_close=self.app_controller.hotkey_manager.resume,
+        )
         vol_form.addRow("Toggle Loopback shortcut:", self._loopback_shortcut_btn)
 
-        self._stop_all_shortcut_btn = ShortcutCaptureButton()
+        self._stop_all_shortcut_btn = ShortcutCaptureButton(
+            on_open=self.app_controller.hotkey_manager.suspend,
+            on_close=self.app_controller.hotkey_manager.resume,
+        )
         vol_form.addRow("Stop All Sounds shortcut:", self._stop_all_shortcut_btn)
 
         layout.addWidget(vol_group)
@@ -116,14 +122,15 @@ class SettingsPanel(QWidget):
         # Game channel row
         self._game_check = QCheckBox("Game Mic enabled")
         self._game_check.toggled.connect(self._game_toggled)
-        self._game_shortcut_edit = QLineEdit()
-        self._game_shortcut_edit.setPlaceholderText("e.g. <ctrl>+<f9>")
-        self._game_shortcut_edit.setFixedWidth(160)
+        self._game_shortcut_btn = ShortcutCaptureButton(
+            on_open=self.app_controller.hotkey_manager.suspend,
+            on_close=self.app_controller.hotkey_manager.resume,
+        )
         game_row = QHBoxLayout()
         game_row.addWidget(self._game_check)
         game_row.addStretch()
         game_row.addWidget(QLabel("Toggle shortcut:"))
-        game_row.addWidget(self._game_shortcut_edit)
+        game_row.addWidget(self._game_shortcut_btn)
         ch_form.addRow("Game:", game_row)
 
         self._game_status = QLabel()
@@ -132,14 +139,15 @@ class SettingsPanel(QWidget):
         # Chat channel row
         self._chat_check = QCheckBox("Chat Mic enabled")
         self._chat_check.toggled.connect(self._chat_toggled)
-        self._chat_shortcut_edit = QLineEdit()
-        self._chat_shortcut_edit.setPlaceholderText("e.g. <ctrl>+<f10>")
-        self._chat_shortcut_edit.setFixedWidth(160)
+        self._chat_shortcut_btn = ShortcutCaptureButton(
+            on_open=self.app_controller.hotkey_manager.suspend,
+            on_close=self.app_controller.hotkey_manager.resume,
+        )
         chat_row = QHBoxLayout()
         chat_row.addWidget(self._chat_check)
         chat_row.addStretch()
         chat_row.addWidget(QLabel("Toggle shortcut:"))
-        chat_row.addWidget(self._chat_shortcut_edit)
+        chat_row.addWidget(self._chat_shortcut_btn)
         ch_form.addRow("Chat:", chat_row)
 
         self._chat_status = QLabel()
@@ -182,6 +190,12 @@ class SettingsPanel(QWidget):
         apply_btn.clicked.connect(self._apply)
         layout.addWidget(apply_btn)
 
+        # Wire immediate conflict detection for all shortcut buttons
+        for label, btn in self._settings_shortcut_buttons():
+            btn.shortcut_captured.connect(
+                lambda sc, b=btn, lbl=label: self._on_settings_shortcut_captured(b, lbl, sc)
+            )
+
     def _populate(self):
         cfg = self.app_controller.config
         self._folder_edit.setText(cfg.sounds_folder or "")
@@ -191,8 +205,8 @@ class SettingsPanel(QWidget):
         self._passthrough_check.setChecked(cfg.mic_passthrough)
         self._game_check.setChecked(cfg.channel_game_enabled)
         self._chat_check.setChecked(cfg.channel_chat_enabled)
-        self._game_shortcut_edit.setText(cfg.channel_game_shortcut)
-        self._chat_shortcut_edit.setText(cfg.channel_chat_shortcut)
+        self._game_shortcut_btn.set_shortcut(cfg.channel_game_shortcut)
+        self._chat_shortcut_btn.set_shortcut(cfg.channel_chat_shortcut)
         self._stop_all_shortcut_btn.set_shortcut(cfg.stop_all_shortcut)
         self._loopback_shortcut_btn.set_shortcut(cfg.loopback_shortcut)
         self._minimize_to_tray_check.setChecked(cfg.minimize_to_tray)
@@ -239,6 +253,56 @@ class SettingsPanel(QWidget):
                 if self._mic_combo.itemData(i) == cfg.mic_device:
                     self._mic_combo.setCurrentIndex(i)
 
+    def _settings_shortcut_buttons(self):
+        """Return (label, button) pairs for all shortcut buttons in the Settings panel."""
+        return [
+            ("Toggle Game Mic",  self._game_shortcut_btn),
+            ("Toggle Chat Mic",  self._chat_shortcut_btn),
+            ("Stop All Sounds",  self._stop_all_shortcut_btn),
+            ("Toggle Loopback",  self._loopback_shortcut_btn),
+        ]
+
+    def _saved_shortcut_for(self, btn) -> str:
+        """Return the currently saved config value for the given button."""
+        cfg = self.app_controller.config
+        if btn is self._game_shortcut_btn:
+            return cfg.channel_game_shortcut
+        if btn is self._chat_shortcut_btn:
+            return cfg.channel_chat_shortcut
+        if btn is self._stop_all_shortcut_btn:
+            return cfg.stop_all_shortcut
+        if btn is self._loopback_shortcut_btn:
+            return cfg.loopback_shortcut
+        return ""
+
+    def _on_settings_shortcut_captured(self, btn, label, new_sc):
+        if not new_sc:
+            return
+        old_sc = self._saved_shortcut_for(btn)
+        # Check against saved config
+        conflict = self.app_controller.find_shortcut_conflict(new_sc, exclude=old_sc)
+        # Also check unsaved sibling buttons in this panel
+        if not conflict:
+            for sibling_label, sibling_btn in self._settings_shortcut_buttons():
+                if sibling_btn is not btn and sibling_btn.get_shortcut() == new_sc:
+                    conflict = sibling_label
+                    break
+        if not conflict:
+            return
+        result = QMessageBox.question(
+            self, "Shortcut Conflict",
+            f"<b>{new_sc}</b> is already used by <b>{conflict}</b>.<br><br>"
+            f"Overwrite and assign to <b>{label}</b>?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if result == QMessageBox.StandardButton.Yes:
+            self.app_controller.clear_shortcut(new_sc)
+            for _, sibling_btn in self._settings_shortcut_buttons():
+                if sibling_btn is not btn and sibling_btn.get_shortcut() == new_sc:
+                    sibling_btn.set_shortcut("")
+        else:
+            btn.set_shortcut(old_sc)
+
     def _browse_folder(self):
         folder = QFileDialog.getExistingDirectory(self, "Select Sounds Folder")
         if folder:
@@ -262,6 +326,7 @@ class SettingsPanel(QWidget):
 
     def _apply(self):
         cfg = self.app_controller.config
+
         cfg.sounds_folder = self._folder_edit.text()
         cfg.output_device = self._output_combo.currentData()
         cfg.mic_device = self._mic_combo.currentData()
@@ -272,8 +337,8 @@ class SettingsPanel(QWidget):
         self.app_controller.engine.set_monitor_enabled(cfg.monitor_enabled)
         cfg.channel_game_enabled = self._game_check.isChecked()
         cfg.channel_chat_enabled = self._chat_check.isChecked()
-        cfg.channel_game_shortcut = self._game_shortcut_edit.text().strip()
-        cfg.channel_chat_shortcut = self._chat_shortcut_edit.text().strip()
+        cfg.channel_game_shortcut = self._game_shortcut_btn.get_shortcut()
+        cfg.channel_chat_shortcut = self._chat_shortcut_btn.get_shortcut()
         cfg.stop_all_shortcut = self._stop_all_shortcut_btn.get_shortcut()
         cfg.loopback_shortcut = self._loopback_shortcut_btn.get_shortcut()
         cfg.minimize_to_tray = self._minimize_to_tray_check.isChecked()

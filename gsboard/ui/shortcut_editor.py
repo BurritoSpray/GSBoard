@@ -1,7 +1,7 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QTableWidget, QTableWidgetItem,
     QPushButton, QLabel, QDialog, QFormLayout, QLineEdit, QSpinBox,
-    QDialogButtonBox, QHeaderView, QAbstractItemView, QCheckBox
+    QDialogButtonBox, QHeaderView, QAbstractItemView, QCheckBox, QMessageBox
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QKeySequence, QKeyEvent
@@ -104,9 +104,11 @@ class ShortcutCaptureDialog(QDialog):
 class ShortcutCaptureButton(QPushButton):
     shortcut_captured = pyqtSignal(str)
 
-    def __init__(self, initial: str = "", parent=None):
+    def __init__(self, initial: str = "", parent=None, on_open=None, on_close=None):
         super().__init__(parent)
         self._shortcut = initial
+        self._on_open = on_open
+        self._on_close = on_close
         self._update_text()
         self.clicked.connect(self._open_dialog)
 
@@ -114,11 +116,17 @@ class ShortcutCaptureButton(QPushButton):
         self.setText(self._shortcut if self._shortcut else "Click to set...")
 
     def _open_dialog(self):
-        dlg = ShortcutCaptureDialog(self._shortcut, self)
-        if dlg.exec() == QDialog.DialogCode.Accepted:
-            self._shortcut = dlg.get_shortcut()
-            self._update_text()
-            self.shortcut_captured.emit(self._shortcut)
+        if self._on_open:
+            self._on_open()
+        try:
+            dlg = ShortcutCaptureDialog(self._shortcut, self)
+            if dlg.exec() == QDialog.DialogCode.Accepted:
+                self._shortcut = dlg.get_shortcut()
+                self._update_text()
+                self.shortcut_captured.emit(self._shortcut)
+        finally:
+            if self._on_close:
+                self._on_close()
 
     def get_shortcut(self) -> str:
         return self._shortcut
@@ -216,7 +224,11 @@ class ShortcutEditor(QWidget):
         for row, sound in enumerate(sounds):
             self._table.setItem(row, 0, QTableWidgetItem(sound.name))
 
-            capture_btn = ShortcutCaptureButton(sound.shortcut)
+            capture_btn = ShortcutCaptureButton(
+                sound.shortcut,
+                on_open=self.app_controller.hotkey_manager.suspend,
+                on_close=self.app_controller.hotkey_manager.resume,
+            )
             capture_btn.shortcut_captured.connect(
                 lambda s, snd=sound: self._on_shortcut_captured(snd, s)
             )
@@ -240,9 +252,23 @@ class ShortcutEditor(QWidget):
             self._table.setCellWidget(row, 4, macro_edit_btn)
 
     def _on_shortcut_captured(self, sound: Sound, shortcut: str):
+        if shortcut:
+            conflict = self.app_controller.find_shortcut_conflict(shortcut, exclude=sound.shortcut)
+            if conflict:
+                result = QMessageBox.question(
+                    self, "Shortcut Conflict",
+                    f"<b>{shortcut}</b> is already used by <b>{conflict}</b>.<br><br>"
+                    f"Overwrite and assign to <b>{sound.name}</b>?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                )
+                if result != QMessageBox.StandardButton.Yes:
+                    self.refresh()
+                    return
+                self.app_controller.clear_shortcut(shortcut)
         sound.shortcut = shortcut
         self.app_controller.save_config()
         self.app_controller.reload_hotkeys()
+        self.refresh()
 
     def _on_pass_through_toggled(self, sound: Sound, checked: bool):
         sound.shortcut_pass_through = checked

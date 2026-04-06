@@ -158,6 +158,38 @@ class AppController:
             return cb
         return lambda: self.play_sound(sound)
 
+    def find_shortcut_conflict(self, shortcut: str, exclude: str = "") -> Optional[str]:
+        """Return a human-readable label of what already uses `shortcut`, or None if free.
+        `exclude` is the old value being replaced and is not counted as a conflict."""
+        if not shortcut or shortcut == exclude:
+            return None
+        for sound in self.config.sounds:
+            if sound.shortcut == shortcut:
+                return f"Sound: {sound.name}"
+        for sc, label in [
+            (self.config.channel_game_shortcut, "Toggle Game Mic"),
+            (self.config.channel_chat_shortcut, "Toggle Chat Mic"),
+            (self.config.stop_all_shortcut,     "Stop All Sounds"),
+            (self.config.loopback_shortcut,     "Toggle Loopback"),
+        ]:
+            if sc == shortcut:
+                return label
+        return None
+
+    def clear_shortcut(self, shortcut: str):
+        """Remove `shortcut` from every place it is currently registered."""
+        for sound in self.config.sounds:
+            if sound.shortcut == shortcut:
+                sound.shortcut = ""
+        if self.config.channel_game_shortcut == shortcut:
+            self.config.channel_game_shortcut = ""
+        if self.config.channel_chat_shortcut == shortcut:
+            self.config.channel_chat_shortcut = ""
+        if self.config.stop_all_shortcut == shortcut:
+            self.config.stop_all_shortcut = ""
+        if self.config.loopback_shortcut == shortcut:
+            self.config.loopback_shortcut = ""
+
     def reload_hotkeys(self):
         shortcuts = {}
         for sound in self.config.sounds:
