@@ -184,7 +184,7 @@ class AudioEngine:
         return ps
 
     def stop_sound(self, sound_id: str):
-        for playing_dict in (self._game_playing, self._chat_playing):
+        for playing_dict in (self._game_playing, self._chat_playing, self._monitor_playing):
             with self._lock:
                 ps = playing_dict.pop(sound_id, None)
             if ps:

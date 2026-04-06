@@ -53,33 +53,72 @@ def _build_key_map() -> Dict[str, int]:
         if qt_key is not None:
             key_map[f"f{i}"] = qt_key.value
 
-    # Common special keys
+    # Common special keys — include both Qt QKeySequence names and legacy aliases
     specials = {
-        "space": Qt.Key.Key_Space,
-        "tab": Qt.Key.Key_Tab,
-        "return": Qt.Key.Key_Return,
-        "enter": Qt.Key.Key_Return,
-        "escape": Qt.Key.Key_Escape,
-        "esc": Qt.Key.Key_Escape,
+        # Navigation (Qt produces these short names)
+        "pgdown": Qt.Key.Key_PageDown, "page_down": Qt.Key.Key_PageDown,
+        "pgup":   Qt.Key.Key_PageUp,   "page_up":   Qt.Key.Key_PageUp,
+        "del":    Qt.Key.Key_Delete,   "delete":    Qt.Key.Key_Delete,
+        "ins":    Qt.Key.Key_Insert,   "insert":    Qt.Key.Key_Insert,
+        "home":   Qt.Key.Key_Home,
+        "end":    Qt.Key.Key_End,
+        "up":     Qt.Key.Key_Up,
+        "down":   Qt.Key.Key_Down,
+        "left":   Qt.Key.Key_Left,
+        "right":  Qt.Key.Key_Right,
+        # Editing
+        "space":     Qt.Key.Key_Space,
+        "tab":       Qt.Key.Key_Tab,
+        "return":    Qt.Key.Key_Return,
+        "enter":     Qt.Key.Key_Enter,
         "backspace": Qt.Key.Key_Backspace,
-        "delete": Qt.Key.Key_Delete,
-        "insert": Qt.Key.Key_Insert,
-        "home": Qt.Key.Key_Home,
-        "end": Qt.Key.Key_End,
-        "page_up": Qt.Key.Key_PageUp,
-        "page_down": Qt.Key.Key_PageDown,
-        "up": Qt.Key.Key_Up,
-        "down": Qt.Key.Key_Down,
-        "left": Qt.Key.Key_Left,
-        "right": Qt.Key.Key_Right,
-        "print_screen": Qt.Key.Key_Print,
-        "scroll_lock": Qt.Key.Key_ScrollLock,
-        "pause": Qt.Key.Key_Pause,
-        "caps_lock": Qt.Key.Key_CapsLock,
-        "num_lock": Qt.Key.Key_NumLock,
+        # Modifiers / locks
+        "esc":         Qt.Key.Key_Escape,   "escape":      Qt.Key.Key_Escape,
+        "capslock":    Qt.Key.Key_CapsLock, "caps_lock":   Qt.Key.Key_CapsLock,
+        "numlock":     Qt.Key.Key_NumLock,  "num_lock":    Qt.Key.Key_NumLock,
+        "scrolllock":  Qt.Key.Key_ScrollLock, "scroll_lock": Qt.Key.Key_ScrollLock,
+        "pause":       Qt.Key.Key_Pause,
+        "print":       Qt.Key.Key_Print,    "print_screen": Qt.Key.Key_Print,
+        # Punctuation / symbols that QKeySequence.toString() produces
+        "-":  Qt.Key.Key_Minus,
+        "+":  Qt.Key.Key_Plus,
+        "*":  Qt.Key.Key_Asterisk,
+        "/":  Qt.Key.Key_Slash,
+        ".":  Qt.Key.Key_Period,
+        ",":  Qt.Key.Key_Comma,
+        "=":  Qt.Key.Key_Equal,
+        ";":  Qt.Key.Key_Semicolon,
+        "'":  Qt.Key.Key_Apostrophe,
+        "[":  Qt.Key.Key_BracketLeft,
+        "]":  Qt.Key.Key_BracketRight,
+        "\\": Qt.Key.Key_Backslash,
+        "`":  Qt.Key.Key_QuoteLeft,
     }
     for name, qt_key in specials.items():
         key_map[name] = qt_key.value
+
+    # Numpad keys — same Qt key value as regular keys but with KeypadModifier set
+    kp_mod = Qt.KeyboardModifier.KeypadModifier.value
+    numpad = {
+        "num_0": Qt.Key.Key_0,
+        "num_1": Qt.Key.Key_1,
+        "num_2": Qt.Key.Key_2,
+        "num_3": Qt.Key.Key_3,
+        "num_4": Qt.Key.Key_4,
+        "num_5": Qt.Key.Key_5,
+        "num_6": Qt.Key.Key_6,
+        "num_7": Qt.Key.Key_7,
+        "num_8": Qt.Key.Key_8,
+        "num_9": Qt.Key.Key_9,
+        "num_decimal": Qt.Key.Key_Period,
+        "num_add": Qt.Key.Key_Plus,
+        "num_subtract": Qt.Key.Key_Minus,
+        "num_multiply": Qt.Key.Key_Asterisk,
+        "num_divide": Qt.Key.Key_Slash,
+        "num_enter": Qt.Key.Key_Enter,
+    }
+    for name, qt_key in numpad.items():
+        key_map[name] = kp_mod | qt_key.value
 
     return key_map
 

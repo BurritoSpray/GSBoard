@@ -8,6 +8,26 @@ from PyQt6.QtGui import QKeySequence, QKeyEvent
 
 from gsboard.models.sound import Sound, MacroConfig
 
+# Maps Qt Key values (when KeypadModifier is set) to pynput-style numpad names.
+_NUMPAD_KEY_NAMES = {
+    Qt.Key.Key_0: "num_0",
+    Qt.Key.Key_1: "num_1",
+    Qt.Key.Key_2: "num_2",
+    Qt.Key.Key_3: "num_3",
+    Qt.Key.Key_4: "num_4",
+    Qt.Key.Key_5: "num_5",
+    Qt.Key.Key_6: "num_6",
+    Qt.Key.Key_7: "num_7",
+    Qt.Key.Key_8: "num_8",
+    Qt.Key.Key_9: "num_9",
+    Qt.Key.Key_Period: "num_decimal",
+    Qt.Key.Key_Plus: "num_add",
+    Qt.Key.Key_Minus: "num_subtract",
+    Qt.Key.Key_Asterisk: "num_multiply",
+    Qt.Key.Key_Slash: "num_divide",
+    Qt.Key.Key_Enter: "num_enter",
+}
+
 
 class ShortcutCaptureDialog(QDialog):
     """Modal dialog that captures a single key combination."""
@@ -53,6 +73,7 @@ class ShortcutCaptureDialog(QDialog):
             event.accept()
             return
         modifiers = event.modifiers()
+        is_numpad = bool(modifiers & Qt.KeyboardModifier.KeypadModifier)
         parts = []
         if modifiers & Qt.KeyboardModifier.ControlModifier:
             parts.append("<ctrl>")
@@ -62,7 +83,10 @@ class ShortcutCaptureDialog(QDialog):
             parts.append("<alt>")
         if modifiers & Qt.KeyboardModifier.MetaModifier:
             parts.append("<super>")
-        key_name = QKeySequence(key).toString().lower()
+        if is_numpad:
+            key_name = _NUMPAD_KEY_NAMES.get(key, QKeySequence(key).toString().lower())
+        else:
+            key_name = QKeySequence(key).toString().lower()
         if key_name and key_name not in ("ctrl", "shift", "alt", "meta", ""):
             if not key_name.startswith("<"):
                 key_name = f"<{key_name}>" if len(key_name) > 1 else key_name
