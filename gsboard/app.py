@@ -105,6 +105,7 @@ class AppController:
         self.engine.set_monitor_device(self.config.output_device)
         self.engine.set_game_enabled(self.config.channel_game_enabled)
         self.engine.set_chat_enabled(self.config.channel_chat_enabled)
+        self.engine.set_monitor_enabled(self.config.monitor_enabled)
         self._start_audio_streams()
         self.hotkey_manager.start()
         self.reload_hotkeys()
@@ -120,6 +121,7 @@ class AppController:
         self.engine.set_monitor_device(self.config.output_device)
         self.engine.set_game_enabled(self.config.channel_game_enabled)
         self.engine.set_chat_enabled(self.config.channel_chat_enabled)
+        self.engine.set_monitor_enabled(self.config.monitor_enabled)
         if self.config.mic_passthrough and self.config.mic_device:
             self.pipewire.enable_mic_passthrough(
                 self.config.mic_device,
@@ -181,16 +183,12 @@ class AppController:
             self.main_window.refresh_channel_status()
 
     def toggle_loopback(self):
-        enabled = not self.config.mic_passthrough
-        self.config.mic_passthrough = enabled
-        if enabled and self.config.mic_device:
-            self.pipewire.enable_mic_passthrough(
-                self.config.mic_device,
-                self.config.mic_passthrough_volume,
-            )
-        else:
-            self.pipewire.disable_mic_passthrough()
+        enabled = not self.config.monitor_enabled
+        self.config.monitor_enabled = enabled
+        self.engine.set_monitor_enabled(enabled)
         self.config.save()
+        if self.main_window:
+            self.main_window.refresh_loopback_status()
 
     def toggle_chat_channel(self):
         enabled = not self.engine.is_chat_enabled()

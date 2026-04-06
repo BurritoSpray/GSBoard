@@ -71,9 +71,6 @@ class SettingsPanel(QWidget):
         self._passthrough_check.toggled.connect(self._toggle_passthrough)
         audio_form.addRow("", self._passthrough_check)
 
-        self._loopback_shortcut_btn = ShortcutCaptureButton()
-        audio_form.addRow("Toggle Loopback shortcut:", self._loopback_shortcut_btn)
-
         self._mic_vol_slider = QSlider(Qt.Orientation.Horizontal)
         self._mic_vol_slider.setRange(0, 100)
         self._mic_vol_slider.setValue(100)
@@ -91,6 +88,12 @@ class SettingsPanel(QWidget):
         self._master_vol_slider.setValue(100)
         self._master_vol_slider.valueChanged.connect(self._master_vol_changed)
         vol_form.addRow("Master Volume:", self._master_vol_slider)
+
+        self._monitor_check = QCheckBox("Hear sounds in my headset (monitor loopback)")
+        vol_form.addRow(self._monitor_check)
+
+        self._loopback_shortcut_btn = ShortcutCaptureButton()
+        vol_form.addRow("Toggle Loopback shortcut:", self._loopback_shortcut_btn)
 
         self._stop_all_shortcut_btn = ShortcutCaptureButton()
         vol_form.addRow("Stop All Sounds shortcut:", self._stop_all_shortcut_btn)
@@ -183,6 +186,7 @@ class SettingsPanel(QWidget):
         cfg = self.app_controller.config
         self._folder_edit.setText(cfg.sounds_folder or "")
         self._master_vol_slider.setValue(int(cfg.master_volume * 100))
+        self._monitor_check.setChecked(cfg.monitor_enabled)
         self._mic_vol_slider.setValue(int(cfg.mic_passthrough_volume * 100))
         self._passthrough_check.setChecked(cfg.mic_passthrough)
         self._game_check.setChecked(cfg.channel_game_enabled)
@@ -264,6 +268,8 @@ class SettingsPanel(QWidget):
         cfg.mic_passthrough = self._passthrough_check.isChecked()
         cfg.mic_passthrough_volume = self._mic_vol_slider.value() / 100
         cfg.master_volume = self._master_vol_slider.value() / 100
+        cfg.monitor_enabled = self._monitor_check.isChecked()
+        self.app_controller.engine.set_monitor_enabled(cfg.monitor_enabled)
         cfg.channel_game_enabled = self._game_check.isChecked()
         cfg.channel_chat_enabled = self._chat_check.isChecked()
         cfg.channel_game_shortcut = self._game_shortcut_edit.text().strip()
@@ -309,6 +315,11 @@ class SettingsPanel(QWidget):
                 lines.append(f"<span style='color:#f44336'>✘ {label}: inactive</span>")
 
         self._vm_status_label.setText("<br>".join(lines))
+
+    def refresh_loopback_status(self):
+        self._monitor_check.blockSignals(True)
+        self._monitor_check.setChecked(self.app_controller.config.monitor_enabled)
+        self._monitor_check.blockSignals(False)
 
     def refresh_channel_status(self):
         engine = self.app_controller.engine

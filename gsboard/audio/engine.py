@@ -76,6 +76,7 @@ class AudioEngine:
 
         # Monitor output — the real headset so the user hears their own sounds
         self._monitor_device: Optional[str] = None
+        self._monitor_enabled: bool = True
         self._monitor_playing: Dict[str, PlayingSound] = {}
 
         # Cache: file_path → wav bytes (at _SAMPLERATE, stereo, normalised)
@@ -108,6 +109,14 @@ class AudioEngine:
         """Set the real output device (headset) where sounds are also played locally.
         Pass None to use the PipeWire default output."""
         self._monitor_device = device
+
+    def set_monitor_enabled(self, enabled: bool):
+        self._monitor_enabled = enabled
+        if not enabled:
+            self._stop_channel(self._monitor_playing)
+
+    def is_monitor_enabled(self) -> bool:
+        return self._monitor_enabled
 
     def set_master_volume(self, volume: float):
         self._master_volume = max(0.0, min(1.0, volume))
@@ -147,8 +156,8 @@ class AudioEngine:
             channels.append((self.pipewire.sink_name, self._game_playing))
         if self._chat_enabled:
             channels.append((self.pipewire.chat_sink_name, self._chat_playing))
-        # Always play to the real headset so the user hears the sound locally
-        channels.append((self._monitor_device, self._monitor_playing))
+        if self._monitor_enabled:
+            channels.append((self._monitor_device, self._monitor_playing))
 
         if not channels:
             ps.finished.set()

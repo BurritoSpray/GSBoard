@@ -48,10 +48,11 @@ class MainWindow(QMainWindow):
 
         game_state = ("ON" if engine.is_game_enabled() else "muted") if game_ok else "inactive"
         chat_state = ("ON" if engine.is_chat_enabled() else "muted") if chat_ok else "inactive"
+        loopback_state = "ON" if engine.is_monitor_enabled() else "OFF"
 
         if game_ok and chat_ok:
             self._mic_label.setText(
-                f"Game mic: {game_state}  |  Chat mic: {chat_state}"
+                f"Game mic: {game_state}  |  Chat mic: {chat_state}  |  Loopback: {loopback_state}"
             )
             self._mic_label.setStyleSheet("color: #4caf50;")
         else:
@@ -64,6 +65,10 @@ class MainWindow(QMainWindow):
 
     def refresh_channel_status(self):
         self.settings_panel.refresh_channel_status()
+
+    def refresh_loopback_status(self):
+        self._update_status()
+        self.settings_panel.refresh_loopback_status()
 
     def closeEvent(self, event):
         if self.app_controller.config.minimize_to_tray:
