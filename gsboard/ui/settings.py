@@ -1,7 +1,7 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QFormLayout, QLabel,
     QComboBox, QSlider, QPushButton, QCheckBox, QLineEdit,
-    QFileDialog, QGroupBox, QSpinBox
+    QFileDialog, QGroupBox, QSpinBox, QScrollArea
 )
 from gsboard.ui.shortcut_editor import ShortcutCaptureButton
 from PyQt6.QtCore import Qt
@@ -15,7 +15,18 @@ class SettingsPanel(QWidget):
         self._populate()
 
     def _build_ui(self):
-        layout = QVBoxLayout(self)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        outer.addWidget(scroll)
+
+        inner = QWidget()
+        scroll.setWidget(inner)
+
+        layout = QVBoxLayout(inner)
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(16)
 
