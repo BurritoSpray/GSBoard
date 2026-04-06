@@ -19,6 +19,9 @@ A free, open-source Linux soundboard that plays sounds through a virtual microph
 - Linux with PipeWire
 - Python 3.10+
 - `pactl` and `pw-link` (included with PipeWire)
+- **Wayland/KDE:** `dbus-python` Python package (installed via `requirements.txt`); KGlobalAccel service (ships with KDE Plasma)
+- **Shortcut pass-through on Wayland:** `ydotool` + `ydotoold` daemon (system package, see [Troubleshooting](#troubleshooting))
+- **Shortcut pass-through on X11:** `xdotool` (system package)
 
 ## Installation
 
@@ -102,6 +105,12 @@ Go to the **Shortcuts** tab. Click any cell in the **Shortcut** column and press
 
 Example shortcuts: `<ctrl>+<f1>`, `<alt>+b`, `f9`
 
+#### Pass Through
+
+By default, when a key is registered as a global shortcut it is exclusively grabbed — pressing it triggers GSBoard but the key no longer reaches other applications. Check the **Pass Through** checkbox next to a sound to re-inject the key press after the sound triggers, so the key continues to work normally in games or other apps.
+
+> **Note:** Pass-through on Wayland requires `ydotool` and its daemon `ydotoold`. On X11 it requires `xdotool`. See [Troubleshooting](#troubleshooting) for setup instructions.
+
 ## Macros
 
 A macro lets you automatically hold down a key while a sound plays. This is useful in games where holding a key activates push-to-talk or a specific action.
@@ -149,11 +158,31 @@ Run `pactl list sources short` in a terminal. You should see `gsboard_sink.monit
 **No sound playing**
 Check that the output device in Settings points to the GSBoard sink, or leave it on default. Verify the virtual mic is active (green status in Settings).
 
-**Global shortcuts not working on Wayland**
-Wayland hotkeys require read access to `/dev/input` devices. Add yourself to the `input` group:
+**Global shortcuts not working on Wayland (KDE)**
+GSBoard uses **KGlobalAccel** via DBus on KDE Plasma Wayland sessions. Make sure the `dbus-python` Python package is installed (`pip install dbus-python`) and that the KGlobalAccel service is running (it starts automatically with Plasma). On non-KDE Wayland compositors the xdg-desktop-portal GlobalShortcuts backend is used as a fallback.
+
+**Pass-through not working on Wayland**
+Key pass-through requires `ydotool` and its daemon `ydotoold`:
 ```bash
-sudo usermod -aG input $USER
-# then log out and back in
+# Arch/CachyOS
+sudo pacman -S ydotool
+systemctl --user enable --now ydotoold
+```
+```bash
+# Debian/Ubuntu/Mint
+sudo apt install ydotool
+systemctl --user enable --now ydotoold
+```
+If `ydotoold` is not running, `ydotool` will print an error and the key will not be re-injected.
+
+**Pass-through not working on X11**
+X11 pass-through uses `xdotool`:
+```bash
+# Arch/CachyOS
+sudo pacman -S xdotool
+
+# Debian/Ubuntu/Mint
+sudo apt install xdotool
 ```
 
 **Sounds are too quiet / too loud**

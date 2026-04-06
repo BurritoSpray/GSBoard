@@ -153,6 +153,15 @@ class SettingsPanel(QWidget):
 
         layout.addWidget(vm_group)
 
+        # --- Behavior ---
+        behavior_group = QGroupBox("Behavior")
+        behavior_form = QFormLayout(behavior_group)
+        self._minimize_to_tray_check = QCheckBox(
+            "Minimize to tray when closing the window (quit from tray menu)"
+        )
+        behavior_form.addRow(self._minimize_to_tray_check)
+        layout.addWidget(behavior_group)
+
         layout.addStretch()
 
         apply_btn = QPushButton("Apply")
@@ -171,6 +180,7 @@ class SettingsPanel(QWidget):
         self._chat_shortcut_edit.setText(cfg.channel_chat_shortcut)
         self._stop_all_shortcut_btn.set_shortcut(cfg.stop_all_shortcut)
         self._loopback_shortcut_btn.set_shortcut(cfg.loopback_shortcut)
+        self._minimize_to_tray_check.setChecked(cfg.minimize_to_tray)
         self._refresh_devices()
         self._update_vm_status()
         self.refresh_channel_status()
@@ -249,6 +259,7 @@ class SettingsPanel(QWidget):
         cfg.channel_chat_shortcut = self._chat_shortcut_edit.text().strip()
         cfg.stop_all_shortcut = self._stop_all_shortcut_btn.get_shortcut()
         cfg.loopback_shortcut = self._loopback_shortcut_btn.get_shortcut()
+        cfg.minimize_to_tray = self._minimize_to_tray_check.isChecked()
         self.app_controller.save_config()
         self.app_controller.apply_audio_settings()
         self.app_controller.reload_hotkeys()

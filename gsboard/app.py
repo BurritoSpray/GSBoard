@@ -1,4 +1,7 @@
+import os
+import subprocess
 import sys
+from typing import Optional
 from PyQt6.QtWidgets import QApplication, QSystemTrayIcon, QMenu
 from PyQt6.QtGui import QIcon, QPixmap, QColor
 from PyQt6.QtCore import Qt
@@ -6,9 +9,81 @@ from PyQt6.QtCore import Qt
 from gsboard.models.config import AppConfig
 from gsboard.audio.pipewire import PipeWireController
 from gsboard.audio.engine import AudioEngine
-from gsboard.input.hotkeys import HotkeyManager
+from gsboard.input.hotkeys import HotkeyManager, SESSION_TYPE
 from gsboard.macros.macro_engine import MacroEngine
 from gsboard.models.sound import Sound
+
+
+def _shortcut_to_tool_key(shortcut: str) -> Optional[str]:
+    """Convert a pynput-style shortcut to an xdotool/ydotool key name."""
+    _MOD = {
+        "ctrl": "ctrl", "control": "ctrl",
+        "alt": "alt",
+        "shift": "shift",
+        "super": "super", "meta": "super", "cmd": "super", "win": "super",
+    }
+    _KEYS = {
+        "space": "space",
+        "return": "Return", "enter": "Return",
+        "escape": "Escape", "esc": "Escape",
+        "backspace": "BackSpace",
+        "delete": "Delete",
+        "insert": "Insert",
+        "home": "Home",
+        "end": "End",
+        "page_up": "Page_Up",
+        "page_down": "Page_Down",
+        "up": "Up", "down": "Down", "left": "Left", "right": "Right",
+        "tab": "Tab",
+        "print_screen": "Print",
+        "scroll_lock": "Scroll_Lock",
+        "pause": "Pause",
+        "caps_lock": "Caps_Lock",
+        "num_lock": "Num_Lock",
+    }
+
+    modifiers = []
+    key = None
+
+    for part in shortcut.lower().split("+"):
+        token = part.strip().strip("<>").strip()
+        if not token:
+            continue
+        if token in _MOD:
+            modifiers.append(_MOD[token])
+        elif len(token) > 1 and token[0] == "f" and token[1:].isdigit():
+            key = f"F{token[1:]}"
+        elif len(token) == 1:
+            key = token
+        elif token in _KEYS:
+            key = _KEYS[token]
+        else:
+            key = token  # best-effort pass-through of unknown names
+
+    if key is None and not modifiers:
+        return None
+    return "+".join(modifiers + ([key] if key else []))
+
+
+def _simulate_shortcut(shortcut: str) -> None:
+    """Re-inject a shortcut key press (for pass-through after KGlobalAccel grab)."""
+    key = _shortcut_to_tool_key(shortcut)
+    if not key:
+        return
+
+    if SESSION_TYPE == "wayland":
+        try:
+            subprocess.run(["ydotool", "key", key], check=False,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except FileNotFoundError:
+            print("[pass-through] ydotool not found — "
+                  "install ydotool and start ydotoold for Wayland key simulation")
+    else:
+        try:
+            subprocess.run(["xdotool", "key", key], check=False,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except FileNotFoundError:
+            print("[pass-through] xdotool not found")
 
 
 class AppController:
@@ -71,11 +146,21 @@ class AppController:
     def save_config(self):
         self.config.save()
 
+    def _make_sound_callback(self, sound: Sound):
+        if sound.shortcut_pass_through:
+            shortcut = sound.shortcut
+
+            def cb():
+                self.play_sound(sound)
+                _simulate_shortcut(shortcut)
+            return cb
+        return lambda: self.play_sound(sound)
+
     def reload_hotkeys(self):
         shortcuts = {}
         for sound in self.config.sounds:
             if sound.shortcut:
-                shortcuts[sound.shortcut] = lambda s=sound: self.play_sound(s)
+                shortcuts[sound.shortcut] = self._make_sound_callback(sound)
         if self.config.channel_game_shortcut:
             shortcuts[self.config.channel_game_shortcut] = self.toggle_game_channel
         if self.config.channel_chat_shortcut:

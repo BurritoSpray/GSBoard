@@ -27,6 +27,7 @@ class AppConfig:
         self.channel_chat_shortcut: str = ""
         self.stop_all_shortcut: str = ""
         self.loopback_shortcut: str = ""
+        self.minimize_to_tray: bool = True
 
     def save(self):
         CONFIG_DIR.mkdir(parents=True, exist_ok=True)
@@ -45,6 +46,7 @@ class AppConfig:
             "channel_chat_shortcut": self.channel_chat_shortcut,
             "stop_all_shortcut": self.stop_all_shortcut,
             "loopback_shortcut": self.loopback_shortcut,
+            "minimize_to_tray": self.minimize_to_tray,
         }
         with open(CONFIG_FILE, "w") as f:
             json.dump(data, f, indent=2)
@@ -68,3 +70,4 @@ class AppConfig:
         self.channel_chat_shortcut = data.get("channel_chat_shortcut", "")
         self.stop_all_shortcut = data.get("stop_all_shortcut", "")
         self.loopback_shortcut = data.get("loopback_shortcut", "")
+        self.minimize_to_tray = data.get("minimize_to_tray", True)

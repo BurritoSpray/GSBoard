@@ -77,10 +77,13 @@ class PipeWireController:
             return False
 
     def destroy_virtual_sink(self):
+        # Unload all loopback modules first (tracked + orphaned) so PipeWire
+        # doesn't reroute mic audio to the headset when the sinks disappear.
         self.disable_mic_passthrough()
+        self._unload_orphaned_loopbacks()
         self._destroy_channel("_source_module_id", "_sink_module_id")
         self._destroy_channel("_chat_source_module_id", "_chat_sink_module_id")
-        # Fallback: unload any orphaned gsboard modules not tracked in memory
+        # Fallback: unload any remaining orphaned gsboard modules
         self._unload_orphaned_modules()
 
     def _destroy_channel(self, *attr_names: str):
@@ -95,6 +98,33 @@ class PipeWireController:
                 except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
                     pass
                 setattr(self, attr, None)
+
+    def _unload_orphaned_loopbacks(self):
+        """Unload any loopback modules targeting gsboard sinks that aren't tracked."""
+        gsboard_sinks = {self.sink_name, self.chat_sink_name}
+        try:
+            r = subprocess.run(
+                ["pactl", "list", "modules", "short"],
+                capture_output=True, text=True, timeout=8,
+            )
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
+            return
+        for line in r.stdout.splitlines():
+            parts = line.split(None, 3)
+            if len(parts) < 2:
+                continue
+            mod_id, mod_type = parts[0], parts[1]
+            args = parts[2] if len(parts) > 2 else ""
+            if mod_type != "module-loopback":
+                continue
+            if any(sink in args for sink in gsboard_sinks):
+                try:
+                    subprocess.run(
+                        ["pactl", "unload-module", mod_id],
+                        capture_output=True, text=True, timeout=8,
+                    )
+                except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+                    pass
 
     def _unload_orphaned_modules(self):
         """Unload any gsboard pactl modules not tracked in instance variables."""

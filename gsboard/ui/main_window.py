@@ -66,7 +66,11 @@ class MainWindow(QMainWindow):
         self.settings_panel.refresh_channel_status()
 
     def closeEvent(self, event):
-        event.accept()
-        self.app_controller.on_quit()
-        from PyQt6.QtWidgets import QApplication
-        QApplication.instance().quit()
+        if self.app_controller.config.minimize_to_tray:
+            event.ignore()
+            self.hide()
+        else:
+            event.accept()
+            self.app_controller.on_quit()
+            from PyQt6.QtWidgets import QApplication
+            QApplication.instance().quit()

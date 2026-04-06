@@ -31,6 +31,7 @@ class Sound:
     color: str = "#4a90d9"
     volume: float = 1.0
     shortcut: str = ""
+    shortcut_pass_through: bool = False
     macro: MacroConfig = field(default_factory=MacroConfig)
 
     def to_dict(self) -> dict:
@@ -40,6 +41,7 @@ class Sound:
             "color": self.color,
             "volume": self.volume,
             "shortcut": self.shortcut,
+            "shortcut_pass_through": self.shortcut_pass_through,
             "macro": self.macro.to_dict(),
         }
 
@@ -51,5 +53,6 @@ class Sound:
             color=d.get("color", "#4a90d9"),
             volume=d.get("volume", 1.0),
             shortcut=d.get("shortcut", ""),
+            shortcut_pass_through=d.get("shortcut_pass_through", False),
             macro=MacroConfig.from_dict(d.get("macro", {})),
         )

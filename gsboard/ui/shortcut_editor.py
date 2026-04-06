@@ -1,7 +1,7 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QTableWidget, QTableWidgetItem,
     QPushButton, QLabel, QDialog, QFormLayout, QLineEdit, QSpinBox,
-    QDialogButtonBox, QHeaderView, QAbstractItemView
+    QDialogButtonBox, QHeaderView, QAbstractItemView, QCheckBox
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QKeySequence, QKeyEvent
@@ -175,12 +175,13 @@ class ShortcutEditor(QWidget):
         info.setStyleSheet("color: #888; font-size: 11px;")
         layout.addWidget(info)
 
-        self._table = QTableWidget(0, 4)
-        self._table.setHorizontalHeaderLabels(["Sound", "Shortcut", "Macro Key", "Macro Delays"])
+        self._table = QTableWidget(0, 5)
+        self._table.setHorizontalHeaderLabels(["Sound", "Shortcut", "Pass Through", "Macro Key", "Macro Delays"])
         self._table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self._table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         self._table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
         self._table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        self._table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
         self._table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self._table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         layout.addWidget(self._table)
@@ -197,15 +198,30 @@ class ShortcutEditor(QWidget):
             )
             self._table.setCellWidget(row, 1, capture_btn)
 
+            chk = QCheckBox()
+            chk.setChecked(sound.shortcut_pass_through)
+            chk.toggled.connect(lambda checked, snd=sound: self._on_pass_through_toggled(snd, checked))
+            chk_container = QWidget()
+            chk_layout = QHBoxLayout(chk_container)
+            chk_layout.addWidget(chk)
+            chk_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            chk_layout.setContentsMargins(0, 0, 0, 0)
+            self._table.setCellWidget(row, 2, chk_container)
+
             macro_key_item = QTableWidgetItem(sound.macro.key or "(none)")
-            self._table.setItem(row, 2, macro_key_item)
+            self._table.setItem(row, 3, macro_key_item)
 
             macro_edit_btn = QPushButton("Edit Macro")
             macro_edit_btn.clicked.connect(lambda _, snd=sound, r=row: self._edit_macro(snd, r))
-            self._table.setCellWidget(row, 3, macro_edit_btn)
+            self._table.setCellWidget(row, 4, macro_edit_btn)
 
     def _on_shortcut_captured(self, sound: Sound, shortcut: str):
         sound.shortcut = shortcut
+        self.app_controller.save_config()
+        self.app_controller.reload_hotkeys()
+
+    def _on_pass_through_toggled(self, sound: Sound, checked: bool):
+        sound.shortcut_pass_through = checked
         self.app_controller.save_config()
         self.app_controller.reload_hotkeys()
 
@@ -214,4 +230,4 @@ class ShortcutEditor(QWidget):
         if dialog.exec() == QDialog.DialogCode.Accepted:
             sound.macro = dialog.get_macro()
             self.app_controller.save_config()
-            self._table.item(row, 2).setText(sound.macro.key or "(none)")
+            self._table.item(row, 3).setText(sound.macro.key or "(none)")
