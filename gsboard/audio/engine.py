@@ -77,6 +77,9 @@ class AudioEngine:
         self._monitor_enabled: bool = True
         self._monitor_playing: Dict[str, PlayingSound] = {}
 
+        # Test mode — bypass all channel settings, play only to the headset
+        self._test_mode: bool = False
+
         # Cache: cache_key → wav bytes (at _SAMPLERATE, stereo, normalised)
         self._wav_cache: Dict[str, bytes] = {}
 
@@ -107,6 +110,12 @@ class AudioEngine:
 
     def is_monitor_enabled(self) -> bool:
         return self._monitor_enabled
+
+    def set_test_mode(self, enabled: bool):
+        self._test_mode = enabled
+
+    def is_test_mode(self) -> bool:
+        return self._test_mode
 
     def set_master_volume(self, volume: float):
         self._master_volume = max(0.0, min(1.0, volume))
@@ -140,13 +149,16 @@ class AudioEngine:
 
         ps = PlayingSound(sound_id)
 
-        channels = []
-        if self._game_enabled:
-            channels.append((self.controller.game_sink_id, self._game_playing))
-        if self._chat_enabled:
-            channels.append((self.controller.chat_sink_id, self._chat_playing))
-        if self._monitor_enabled:
-            channels.append((self._monitor_device, self._monitor_playing))
+        if self._test_mode:
+            channels = [(self._monitor_device, self._monitor_playing)]
+        else:
+            channels = []
+            if self._game_enabled:
+                channels.append((self.controller.game_sink_id, self._game_playing))
+            if self._chat_enabled:
+                channels.append((self.controller.chat_sink_id, self._chat_playing))
+            if self._monitor_enabled:
+                channels.append((self._monitor_device, self._monitor_playing))
 
         if not channels:
             ps.finished.set()
@@ -196,7 +208,8 @@ class AudioEngine:
     def is_playing(self, sound_id: str) -> bool:
         with self._lock:
             ps = (self._game_playing.get(sound_id) or
-                  self._chat_playing.get(sound_id))
+                  self._chat_playing.get(sound_id) or
+                  self._monitor_playing.get(sound_id))
         return ps is not None and not ps.finished.is_set()
 
     # ------------------------------------------------------------------ #

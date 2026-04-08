@@ -274,6 +274,14 @@ class SoundGrid(QWidget):
             "QPushButton:pressed { background-color: #b71c1c; }"
         )
         top.addWidget(stop_btn)
+
+        self._test_btn = QPushButton("Test Mode: OFF")
+        self._test_btn.setCheckable(True)
+        self._test_btn.setChecked(False)
+        self._test_btn.clicked.connect(self._toggle_test_mode)
+        self._apply_test_btn_style(False)
+        top.addWidget(self._test_btn)
+
         root.addLayout(top)
 
         # Scroll area with flow layout
@@ -299,6 +307,25 @@ class SoundGrid(QWidget):
         engine = self.app_controller.engine
         for btn in self._buttons:
             btn.set_playing(engine.is_playing(btn.sound.name))
+
+    # ---- Test mode ----
+
+    def _toggle_test_mode(self, checked: bool):
+        self.app_controller.engine.set_test_mode(checked)
+        self._apply_test_btn_style(checked)
+
+    def _apply_test_btn_style(self, active: bool):
+        if active:
+            self._test_btn.setText("Test Mode: ON")
+            self._test_btn.setStyleSheet(
+                "QPushButton { background-color: #f57c00; color: white; border-radius: 4px;"
+                " padding: 4px 12px; font-weight: bold; }"
+                "QPushButton:hover { background-color: #fb8c00; }"
+                "QPushButton:pressed { background-color: #e65100; }"
+            )
+        else:
+            self._test_btn.setText("Test Mode: OFF")
+            self._test_btn.setStyleSheet("")
 
     # ---- Refresh / rebuild ----
 
