@@ -1,23 +1,20 @@
 """
-Audio engine using paplay subprocesses for PipeWire-native routing.
+Audio engine — platform-agnostic playback coordinator.
 
-Each sound spawns a paplay process per enabled channel.  paplay speaks
-PulseAudio protocol (via pipewire-pulse) and can target specific sinks by
-name, which ALSA-backed sounddevice cannot do.  PipeWire mixes concurrent
-paplay streams server-side, giving us free simultaneous playback.
+Each sound is played per-channel by delegating to the AudioController's
+play_wav() method, which handles the platform-specific mechanics
+(paplay on Linux/PipeWire, sounddevice on Windows).
 """
 
-import io
 import threading
 from math import gcd
-from typing import Dict, List, Optional, Callable
-import subprocess
+from typing import Dict, List, Optional
 
 import numpy as np
 import soundfile as sf
 from scipy.signal import resample_poly
 
-from gsboard.audio.pipewire import PipeWireController
+from gsboard.audio.backend import AudioController, PlayHandle
 
 _SAMPLERATE = 48000
 _CHANNELS = 2
@@ -25,25 +22,26 @@ _CHANNELS = 2
 
 def _to_wav_bytes(data: np.ndarray) -> bytes:
     """Encode a float32 stereo numpy array as a 32-bit float WAV in memory."""
+    import io
+    import soundfile as sf
     buf = io.BytesIO()
-    # soundfile writes IEEE_FLOAT WAV which paplay handles natively
     sf.write(buf, data, _SAMPLERATE, format="WAV", subtype="FLOAT")
     return buf.getvalue()
 
 
 class PlayingSound:
-    """Tracks running paplay subprocesses for one triggered sound."""
+    """Tracks running play handles for one triggered sound across all channels."""
 
     def __init__(self, sound_id: str):
         self.sound_id = sound_id
         self.finished = threading.Event()
-        self._procs: List[subprocess.Popen] = []
+        self._handles: List[PlayHandle] = []
         self._lock = threading.Lock()
 
     def _monitor(self, cleanup_cb=None):
-        for proc in list(self._procs):
+        for handle in list(self._handles):
             try:
-                proc.wait()
+                handle.wait()
             except Exception:
                 pass
         self.finished.set()
@@ -52,19 +50,19 @@ class PlayingSound:
 
     def stop(self):
         with self._lock:
-            procs = list(self._procs)
-            self._procs.clear()
-        for proc in procs:
+            handles = list(self._handles)
+            self._handles.clear()
+        for handle in handles:
             try:
-                proc.kill()
+                handle.stop()
             except Exception:
                 pass
         self.finished.set()
 
 
 class AudioEngine:
-    def __init__(self, pipewire: PipeWireController):
-        self.pipewire = pipewire
+    def __init__(self, controller: AudioController):
+        self.controller = controller
         self._master_volume: float = 1.0
         self._game_enabled: bool = True
         self._chat_enabled: bool = True
@@ -79,7 +77,7 @@ class AudioEngine:
         self._monitor_enabled: bool = True
         self._monitor_playing: Dict[str, PlayingSound] = {}
 
-        # Cache: file_path → wav bytes (at _SAMPLERATE, stereo, normalised)
+        # Cache: cache_key → wav bytes (at _SAMPLERATE, stereo, normalised)
         self._wav_cache: Dict[str, bytes] = {}
 
     # ------------------------------------------------------------------ #
@@ -88,15 +86,8 @@ class AudioEngine:
 
     def start(self, game_device: Optional[str] = None,
               chat_device: Optional[str] = None) -> bool:
-        # Nothing to start — streams are created on demand per sound.
-        # Validate that paplay is available.
-        try:
-            subprocess.run(["paplay", "--version"],
-                           capture_output=True, check=True)
-            return True
-        except (FileNotFoundError, subprocess.CalledProcessError):
-            print("[AudioEngine] paplay not found — install pulseaudio-utils")
-            return False
+        # Streams are created on demand; nothing to initialise here.
+        return True
 
     def stop(self):
         self.stop_all()
@@ -106,8 +97,7 @@ class AudioEngine:
     # ------------------------------------------------------------------ #
 
     def set_monitor_device(self, device: Optional[str]):
-        """Set the real output device (headset) where sounds are also played locally.
-        Pass None to use the PipeWire default output."""
+        """Set the real output device (headset) where sounds are also played locally."""
         self._monitor_device = device
 
     def set_monitor_enabled(self, enabled: bool):
@@ -120,7 +110,6 @@ class AudioEngine:
 
     def set_master_volume(self, volume: float):
         self._master_volume = max(0.0, min(1.0, volume))
-        # Invalidate WAV cache so new plays use the updated volume
         self._wav_cache.clear()
 
     def set_game_enabled(self, enabled: bool):
@@ -144,7 +133,7 @@ class AudioEngine:
     # ------------------------------------------------------------------ #
 
     def play(self, sound_id: str, file_path: str,
-             volume: float = 1.0) -> Optional["PlayingSound"]:
+             volume: float = 1.0) -> Optional[PlayingSound]:
         wav = self._load_wav(file_path, volume)
         if wav is None:
             return None
@@ -153,9 +142,9 @@ class AudioEngine:
 
         channels = []
         if self._game_enabled:
-            channels.append((self.pipewire.sink_name, self._game_playing))
+            channels.append((self.controller.game_sink_id, self._game_playing))
         if self._chat_enabled:
-            channels.append((self.pipewire.chat_sink_name, self._chat_playing))
+            channels.append((self.controller.chat_sink_id, self._chat_playing))
         if self._monitor_enabled:
             channels.append((self._monitor_device, self._monitor_playing))
 
@@ -163,20 +152,19 @@ class AudioEngine:
             ps.finished.set()
             return ps
 
-        for sink, playing_dict in channels:
-            # Stop previous instance of this sound on this channel
+        for device_id, playing_dict in channels:
             with self._lock:
                 old = playing_dict.pop(sound_id, None)
             if old:
                 old.stop()
 
-            proc = self._spawn_paplay(sink, wav)
-            if proc:
+            handle = self.controller.play_wav(wav, device_id)
+            if handle:
                 with self._lock:
-                    ps._procs.append(proc)
+                    ps._handles.append(handle)
                     playing_dict[sound_id] = ps
 
-        if not ps._procs:
+        if not ps._handles:
             ps.finished.set()
             return ps
 
@@ -193,7 +181,8 @@ class AudioEngine:
         return ps
 
     def stop_sound(self, sound_id: str):
-        for playing_dict in (self._game_playing, self._chat_playing, self._monitor_playing):
+        for playing_dict in (self._game_playing, self._chat_playing,
+                              self._monitor_playing):
             with self._lock:
                 ps = playing_dict.pop(sound_id, None)
             if ps:
@@ -206,7 +195,8 @@ class AudioEngine:
 
     def is_playing(self, sound_id: str) -> bool:
         with self._lock:
-            ps = self._game_playing.get(sound_id) or self._chat_playing.get(sound_id)
+            ps = (self._game_playing.get(sound_id) or
+                  self._chat_playing.get(sound_id))
         return ps is not None and not ps.finished.is_set()
 
     # ------------------------------------------------------------------ #
@@ -220,44 +210,7 @@ class AudioEngine:
         for ps in items:
             ps.stop()
 
-    def _spawn_paplay(self, sink_name: Optional[str],
-                      wav_bytes: bytes) -> Optional[subprocess.Popen]:
-        try:
-            cmd = ["paplay"]
-            if sink_name:
-                cmd.append(f"--device={sink_name}")
-            cmd.append("/dev/stdin")
-            proc = subprocess.Popen(cmd, stdin=subprocess.PIPE,
-                                    stderr=subprocess.PIPE)
-            # Feed data then close stdin in a background thread so we don't block
-            def _feed(p, data, label):
-                try:
-                    p.stdin.write(data)
-                    p.stdin.close()
-                except Exception:
-                    pass
-                try:
-                    ret = p.wait(timeout=10)
-                    if ret != 0:
-                        err = p.stderr.read().decode(errors="replace").strip()
-                        print(f"[AudioEngine] paplay({label}) exited {ret}: {err}")
-                except subprocess.TimeoutExpired:
-                    pass
-                except Exception:
-                    pass
-            label = sink_name or "default"
-            threading.Thread(target=_feed, args=(proc, wav_bytes, label),
-                             daemon=True).start()
-            return proc
-        except FileNotFoundError:
-            print("[AudioEngine] paplay not found — install pulseaudio-utils or pipewire-pulse")
-            return None
-        except Exception as e:
-            print(f"[AudioEngine] spawn failed: {e}")
-            return None
-
     def _load_wav(self, file_path: str, volume: float) -> Optional[bytes]:
-        # Cache key includes volume so different volumes don't alias
         cache_key = f"{file_path}:{volume:.4f}:{self._master_volume:.4f}"
         if cache_key in self._wav_cache:
             return self._wav_cache[cache_key]
@@ -267,17 +220,14 @@ class AudioEngine:
             print(f"[AudioEngine] Failed to load {file_path}: {e}")
             return None
 
-        # Ensure stereo
         if data.shape[1] == 1:
             data = np.repeat(data, 2, axis=1)
         elif data.shape[1] > 2:
             data = data[:, :2]
 
-        # Resample if needed
         if sr != _SAMPLERATE:
             data = self._resample(data, sr, _SAMPLERATE)
 
-        # Apply volume
         data = (data * volume * self._master_volume).clip(-1.0, 1.0)
 
         wav_bytes = _to_wav_bytes(data)
@@ -288,10 +238,9 @@ class AudioEngine:
                   target_sr: int) -> np.ndarray:
         g = gcd(orig_sr, target_sr)
         up, down = target_sr // g, orig_sr // g
-        # resample_poly applies anti-aliasing filter — much better than linear interp
         resampled = resample_poly(data, up, down, axis=0)
         return resampled.astype("float32")
 
     def list_output_devices(self) -> list:
-        """Returns PipeWire sinks visible via pactl."""
-        return [(n, d) for n, d in self.pipewire.list_sinks()]
+        """Returns output devices from the active audio controller."""
+        return [(n, d) for n, d in self.controller.list_output_devices()]

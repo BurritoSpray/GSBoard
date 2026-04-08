@@ -216,25 +216,25 @@ class SettingsPanel(QWidget):
 
     def _refresh_devices(self):
         cfg = self.app_controller.config
-        pw = self.app_controller.pipewire
+        ac = self.app_controller.audio_controller
 
         self._output_combo.clear()
-        sinks = pw.list_sinks()
+        sinks = ac.list_output_devices()
         selected_index = 0
         for name, desc in sinks:
-            if name == pw.sink_name:
+            if name == ac.game_sink_id:
                 label = f"{desc}  ★ (GSBoard Game)"
-            elif name == pw.chat_sink_name:
+            elif name == ac.chat_sink_id:
                 label = f"{desc}  ★ (GSBoard Chat)"
             else:
                 label = desc
             self._output_combo.addItem(label, name)
-            if name == pw.sink_name:
+            if name == ac.game_sink_id:
                 selected_index = self._output_combo.count() - 1
         if not sinks:
-            self._output_combo.addItem("(no devices found — is PipeWire running?)", None)
+            self._output_combo.addItem("(no output devices found)", None)
 
-        target = cfg.output_device or pw.sink_name
+        target = cfg.output_device or ac.game_sink_id
         for i in range(self._output_combo.count()):
             if self._output_combo.itemData(i) == target:
                 self._output_combo.setCurrentIndex(i)
@@ -244,9 +244,9 @@ class SettingsPanel(QWidget):
 
         self._mic_combo.clear()
         self._mic_combo.addItem("(none)", None)
-        sources = pw.list_sources()
+        sources = ac.list_input_devices()
         for name, desc in sources:
-            if name not in (pw.source_name, pw.chat_source_name):
+            if name not in (ac.game_source_id, ac.chat_source_id):
                 self._mic_combo.addItem(desc, name)
         if cfg.mic_device:
             for i in range(self._mic_combo.count()):
@@ -349,35 +349,45 @@ class SettingsPanel(QWidget):
         self.refresh_channel_status()
 
     def _create_virtual_mic(self):
-        ok = self.app_controller.pipewire.create_virtual_sink()
+        ok = self.app_controller.audio_controller.create_virtual_devices()
         self._update_vm_status()
         if not ok:
             from PyQt6.QtWidgets import QMessageBox
-            QMessageBox.warning(self, "Virtual Mic", "Failed to create virtual mic.\nIs PipeWire running?")
+            QMessageBox.warning(
+                self, "Virtual Mic",
+                "Failed to create virtual audio devices.\n"
+                "On Linux: is PipeWire running?\n"
+                "On Windows: install VB-Cable (https://vb-audio.com/Cable/)."
+            )
         else:
-            # Re-open audio streams now that the sinks exist
             self.app_controller.apply_audio_settings()
 
     def _destroy_virtual_mic(self):
-        self.app_controller.pipewire.destroy_virtual_sink()
+        self.app_controller.audio_controller.destroy_virtual_devices()
         self._update_vm_status()
 
     def _update_vm_status(self):
-        pw = self.app_controller.pipewire
+        ac = self.app_controller.audio_controller
         lines = []
 
-        for sink, source, label in [
-            (pw.sink_name, pw.source_name, "Game"),
-            (pw.chat_sink_name, pw.chat_source_name, "Chat"),
+        for sink_active, src_active, source_id, label in [
+            (ac.is_game_sink_active(), ac.is_game_source_active(),
+             ac.game_source_id, "Game"),
+            (ac.is_chat_sink_active(), ac.is_chat_source_active(),
+             ac.chat_source_id, "Chat"),
         ]:
-            sink_ok = pw._is_active(sink, "sinks")
-            src_ok = pw._is_active(source, "sources")
-            if sink_ok and src_ok:
-                lines.append(f"<span style='color:#4caf50'>✔ {label}: {source} (active)</span>")
-            elif sink_ok:
-                lines.append(f"<span style='color:#ff9800'>⚠ {label}: sink active, mic source missing</span>")
+            if sink_active and src_active:
+                lines.append(
+                    f"<span style='color:#4caf50'>✔ {label}: {source_id} (active)</span>"
+                )
+            elif sink_active:
+                lines.append(
+                    f"<span style='color:#ff9800'>⚠ {label}: sink active, mic source missing</span>"
+                )
             else:
-                lines.append(f"<span style='color:#f44336'>✘ {label}: inactive</span>")
+                lines.append(
+                    f"<span style='color:#f44336'>✘ {label}: inactive</span>"
+                )
 
         self._vm_status_label.setText("<br>".join(lines))
 
@@ -388,18 +398,18 @@ class SettingsPanel(QWidget):
 
     def refresh_channel_status(self):
         engine = self.app_controller.engine
-        pw = self.app_controller.pipewire
+        ac = self.app_controller.audio_controller
 
         game_on = engine.is_game_enabled()
         self._game_status.setText(
-            f"Mic: <b>{pw.source_name}</b> — "
+            f"Mic: <b>{ac.game_source_id}</b> — "
             + ("<span style='color:#4caf50'>sending sounds</span>" if game_on
                else "<span style='color:#888'>muted</span>")
         )
 
         chat_on = engine.is_chat_enabled()
         self._chat_status.setText(
-            f"Mic: <b>{pw.chat_source_name}</b> — "
+            f"Mic: <b>{ac.chat_source_id}</b> — "
             + ("<span style='color:#4caf50'>sending sounds</span>" if chat_on
                else "<span style='color:#888'>muted</span>")
         )

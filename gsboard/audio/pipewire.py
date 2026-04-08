@@ -1,9 +1,36 @@
 import subprocess
-import re
+import threading
 from typing import Optional, List, Tuple
 
+from gsboard.audio.backend import AudioController, PlayHandle
 
-class PipeWireController:
+
+# ------------------------------------------------------------------
+# PlayHandle implementation for paplay subprocesses
+# ------------------------------------------------------------------
+
+class PaplayHandle(PlayHandle):
+    def __init__(self, proc: subprocess.Popen):
+        self._proc = proc
+
+    def stop(self):
+        try:
+            self._proc.kill()
+        except Exception:
+            pass
+
+    def wait(self, timeout: Optional[float] = None):
+        try:
+            self._proc.wait(timeout=timeout)
+        except Exception:
+            pass
+
+
+# ------------------------------------------------------------------
+# PipeWire / PulseAudio controller
+# ------------------------------------------------------------------
+
+class PipeWireController(AudioController):
     def __init__(self, sink_name: str = "gsboard_sink"):
         # Game channel — for in-game audio (e.g. Arc Raiders)
         self.sink_name = sink_name
@@ -18,9 +45,119 @@ class PipeWireController:
         self._chat_source_module_id: Optional[str] = None
         self._loopback_module_ids: List[str] = []
 
-    # ------------------------------------------------------------------ #
-    # Virtual device lifecycle                                             #
-    # ------------------------------------------------------------------ #
+    # ------------------------------------------------------------------
+    # AudioController — virtual device identifiers
+    # ------------------------------------------------------------------
+
+    @property
+    def game_sink_id(self) -> Optional[str]:
+        return self.sink_name
+
+    @property
+    def game_source_id(self) -> Optional[str]:
+        return self.source_name
+
+    @property
+    def chat_sink_id(self) -> Optional[str]:
+        return self.chat_sink_name
+
+    @property
+    def chat_source_id(self) -> Optional[str]:
+        return self.chat_source_name
+
+    # ------------------------------------------------------------------
+    # AudioController — virtual device lifecycle
+    # ------------------------------------------------------------------
+
+    def create_virtual_devices(self) -> bool:
+        return self.create_virtual_sink()
+
+    def destroy_virtual_devices(self):
+        self.destroy_virtual_sink()
+
+    # ------------------------------------------------------------------
+    # AudioController — status
+    # ------------------------------------------------------------------
+
+    def is_game_sink_active(self) -> bool:
+        return self._is_active(self.sink_name, "sinks")
+
+    def is_game_source_active(self) -> bool:
+        return self._is_active(self.source_name, "sources")
+
+    def is_chat_sink_active(self) -> bool:
+        return self._is_active(self.chat_sink_name, "sinks")
+
+    def is_chat_source_active(self) -> bool:
+        return self._is_active(self.chat_source_name, "sources")
+
+    # ------------------------------------------------------------------
+    # AudioController — device listing
+    # ------------------------------------------------------------------
+
+    def list_output_devices(self) -> List[Tuple[str, str]]:
+        return self.list_sinks()
+
+    def list_input_devices(self) -> List[Tuple[str, str]]:
+        return self.list_sources()
+
+    # ------------------------------------------------------------------
+    # AudioController — playback
+    # ------------------------------------------------------------------
+
+    def play_wav(self, wav_bytes: bytes,
+                 device_id: Optional[str]) -> Optional[PaplayHandle]:
+        """Spawn a paplay subprocess and feed it the WAV bytes."""
+        try:
+            cmd = ["paplay"]
+            if device_id:
+                cmd.append(f"--device={device_id}")
+            cmd.append("/dev/stdin")
+            proc = subprocess.Popen(cmd, stdin=subprocess.PIPE,
+                                    stderr=subprocess.PIPE)
+
+            label = device_id or "default"
+
+            def _feed(p, data):
+                try:
+                    p.stdin.write(data)
+                    p.stdin.close()
+                except Exception:
+                    pass
+                try:
+                    ret = p.wait(timeout=10)
+                    if ret != 0:
+                        err = p.stderr.read().decode(errors="replace").strip()
+                        print(f"[PipeWire] paplay({label}) exited {ret}: {err}")
+                except subprocess.TimeoutExpired:
+                    pass
+                except Exception:
+                    pass
+
+            threading.Thread(target=_feed, args=(proc, wav_bytes),
+                             daemon=True).start()
+            return PaplayHandle(proc)
+        except FileNotFoundError:
+            print("[PipeWire] paplay not found — install pulseaudio-utils or pipewire-pulse")
+            return None
+        except Exception as e:
+            print(f"[PipeWire] spawn failed: {e}")
+            return None
+
+    # ------------------------------------------------------------------
+    # AudioController — mic passthrough
+    # ------------------------------------------------------------------
+
+    def enable_mic_passthrough(self, mic_device_id: str,
+                               volume: float) -> bool:
+        return self._enable_mic_passthrough_impl(mic_device_id, volume)
+
+    def disable_mic_passthrough(self):
+        self._disable_mic_passthrough_impl()
+
+    # ------------------------------------------------------------------
+    # Virtual device lifecycle (internal)
+    # ------------------------------------------------------------------
 
     def create_virtual_sink(self) -> bool:
         game_ok = self._create_channel(
@@ -79,7 +216,7 @@ class PipeWireController:
     def destroy_virtual_sink(self):
         # Unload all loopback modules first (tracked + orphaned) so PipeWire
         # doesn't reroute mic audio to the headset when the sinks disappear.
-        self.disable_mic_passthrough()
+        self._disable_mic_passthrough_impl()
         self._unload_orphaned_loopbacks()
         self._destroy_channel("_source_module_id", "_sink_module_id")
         self._destroy_channel("_chat_source_module_id", "_chat_sink_module_id")
@@ -156,9 +293,9 @@ class PipeWireController:
                 except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
                     pass
 
-    # ------------------------------------------------------------------ #
-    # Status                                                               #
-    # ------------------------------------------------------------------ #
+    # ------------------------------------------------------------------
+    # Status helpers
+    # ------------------------------------------------------------------
 
     def _is_active(self, name: str, kind: str) -> bool:
         try:
@@ -171,23 +308,17 @@ class PipeWireController:
             return False
 
     def is_sink_active(self) -> bool:
-        return self._is_active(self.sink_name, "sinks")
+        return self.is_game_sink_active()
 
     def is_source_active(self) -> bool:
-        return self._is_active(self.source_name, "sources")
-
-    def is_chat_sink_active(self) -> bool:
-        return self._is_active(self.chat_sink_name, "sinks")
-
-    def is_chat_source_active(self) -> bool:
-        return self._is_active(self.chat_source_name, "sources")
+        return self.is_game_source_active()
 
     def get_virtual_mic_name(self) -> Optional[str]:
-        return self.source_name if self.is_source_active() else None
+        return self.source_name if self.is_game_source_active() else None
 
-    # ------------------------------------------------------------------ #
-    # Device listing                                                       #
-    # ------------------------------------------------------------------ #
+    # ------------------------------------------------------------------
+    # Device listing helpers
+    # ------------------------------------------------------------------
 
     def list_sinks(self) -> List[Tuple[str, str]]:
         """Returns (name, description) for all sinks."""
@@ -222,7 +353,7 @@ class PipeWireController:
         return devices
 
     def get_sink_description(self, sink_name: str) -> Optional[str]:
-        """Returns the human-readable description for a sink (used for sounddevice lookup)."""
+        """Returns the human-readable description for a sink."""
         for name, desc in self.list_sinks():
             if name == sink_name:
                 return desc
@@ -243,13 +374,29 @@ class PipeWireController:
             pass
         return None
 
-    # ------------------------------------------------------------------ #
-    # Mic passthrough via loopback modules                                 #
-    # ------------------------------------------------------------------ #
+    def get_sink_index(self) -> Optional[int]:
+        try:
+            r = subprocess.run(
+                ["pactl", "list", "sinks", "short"],
+                capture_output=True, text=True, check=True, timeout=5,
+            )
+            for line in r.stdout.splitlines():
+                if self.sink_name in line:
+                    parts = line.split()
+                    if parts:
+                        return int(parts[0])
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, ValueError):
+            pass
+        return None
 
-    def enable_mic_passthrough(self, mic_source_name: str, volume: float = 1.0) -> bool:
-        """Loops the real mic into both virtual sinks using PulseAudio loopback modules."""
-        self.disable_mic_passthrough()
+    # ------------------------------------------------------------------
+    # Mic passthrough via loopback modules (internal)
+    # ------------------------------------------------------------------
+
+    def _enable_mic_passthrough_impl(self, mic_source_name: str,
+                                     volume: float) -> bool:
+        """Loops the real mic into both virtual sinks using loopback modules."""
+        self._disable_mic_passthrough_impl()
         vol_pa = int(volume * 65536)
         success = False
         for sink in (self.sink_name, self.chat_sink_name):
@@ -273,7 +420,7 @@ class PipeWireController:
                 print(f"[PipeWire] loopback to {sink} failed: {stderr}")
         return success
 
-    def disable_mic_passthrough(self):
+    def _disable_mic_passthrough_impl(self):
         for mod_id in self._loopback_module_ids:
             try:
                 subprocess.run(
@@ -283,18 +430,3 @@ class PipeWireController:
             except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
                 pass
         self._loopback_module_ids.clear()
-
-    def get_sink_index(self) -> Optional[int]:
-        try:
-            r = subprocess.run(
-                ["pactl", "list", "sinks", "short"],
-                capture_output=True, text=True, check=True, timeout=5,
-            )
-            for line in r.stdout.splitlines():
-                if self.sink_name in line:
-                    parts = line.split()
-                    if parts:
-                        return int(parts[0])
-        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, ValueError):
-            pass
-        return None

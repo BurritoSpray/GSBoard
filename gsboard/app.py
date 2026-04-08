@@ -7,11 +7,21 @@ from PyQt6.QtGui import QIcon, QPixmap, QColor
 from PyQt6.QtCore import Qt
 
 from gsboard.models.config import AppConfig
-from gsboard.audio.pipewire import PipeWireController
+from gsboard.audio.backend import AudioController
 from gsboard.audio.engine import AudioEngine
 from gsboard.input.hotkeys import HotkeyManager, SESSION_TYPE
 from gsboard.macros.macro_engine import MacroEngine
 from gsboard.models.sound import Sound
+
+
+def _make_audio_controller(config: AppConfig) -> AudioController:
+    """Select the appropriate AudioController for the current platform."""
+    if sys.platform == "win32":
+        from gsboard.audio.windows import WindowsAudioController
+        return WindowsAudioController()
+    # Linux (PipeWire / PulseAudio)
+    from gsboard.audio.pipewire import PipeWireController
+    return PipeWireController(config.virtual_sink_name)
 
 
 def _shortcut_to_tool_key(shortcut: str) -> Optional[str]:
@@ -91,8 +101,8 @@ class AppController:
         self.config = AppConfig()
         self.config.load()
 
-        self.pipewire = PipeWireController(self.config.virtual_sink_name)
-        self.engine = AudioEngine(self.pipewire)
+        self.audio_controller: AudioController = _make_audio_controller(self.config)
+        self.engine = AudioEngine(self.audio_controller)
         self.hotkey_manager = HotkeyManager()
         self.macro_engine = MacroEngine()
 
@@ -100,7 +110,7 @@ class AppController:
         self._tray: QSystemTrayIcon = None
 
     def start(self):
-        self.pipewire.create_virtual_sink()
+        self.audio_controller.create_virtual_devices()
         self.engine.set_master_volume(self.config.master_volume)
         self.engine.set_monitor_device(self.config.output_device)
         self.engine.set_game_enabled(self.config.channel_game_enabled)
@@ -111,7 +121,6 @@ class AppController:
         self.reload_hotkeys()
 
     def _start_audio_streams(self):
-        # paplay targets sinks by their pactl name directly — no device lookup needed.
         self.engine.start()
 
     def apply_audio_settings(self):
@@ -123,12 +132,12 @@ class AppController:
         self.engine.set_chat_enabled(self.config.channel_chat_enabled)
         self.engine.set_monitor_enabled(self.config.monitor_enabled)
         if self.config.mic_passthrough and self.config.mic_device:
-            self.pipewire.enable_mic_passthrough(
+            self.audio_controller.enable_mic_passthrough(
                 self.config.mic_device,
                 self.config.mic_passthrough_volume,
             )
         else:
-            self.pipewire.disable_mic_passthrough()
+            self.audio_controller.disable_mic_passthrough()
 
     def play_sound(self, sound: Sound):
         if sound.macro.key:
@@ -158,9 +167,9 @@ class AppController:
             return cb
         return lambda: self.play_sound(sound)
 
-    def find_shortcut_conflict(self, shortcut: str, exclude: str = "") -> Optional[str]:
-        """Return a human-readable label of what already uses `shortcut`, or None if free.
-        `exclude` is the old value being replaced and is not counted as a conflict."""
+    def find_shortcut_conflict(self, shortcut: str,
+                               exclude: str = "") -> Optional[str]:
+        """Return a label of what already uses *shortcut*, or None if free."""
         if not shortcut or shortcut == exclude:
             return None
         for sound in self.config.sounds:
@@ -177,7 +186,7 @@ class AppController:
         return None
 
     def clear_shortcut(self, shortcut: str):
-        """Remove `shortcut` from every place it is currently registered."""
+        """Remove *shortcut* from every place it is currently registered."""
         for sound in self.config.sounds:
             if sound.shortcut == shortcut:
                 sound.shortcut = ""
@@ -236,8 +245,8 @@ class AppController:
         self._quitting = True
         self.hotkey_manager.stop()
         self.engine.stop()
-        self.pipewire.disable_mic_passthrough()
-        self.pipewire.destroy_virtual_sink()
+        self.audio_controller.disable_mic_passthrough()
+        self.audio_controller.destroy_virtual_devices()
         self.macro_engine.shutdown()
         self.config.save()
 
@@ -246,7 +255,9 @@ class AppController:
         self._tray = QSystemTrayIcon(icon, app)
         menu = QMenu()
         show_action = menu.addAction("Show")
-        show_action.triggered.connect(lambda: self.main_window.show() if self.main_window else None)
+        show_action.triggered.connect(
+            lambda: self.main_window.show() if self.main_window else None
+        )
         stop_action = menu.addAction("Stop All Sounds")
         stop_action.triggered.connect(self.stop_all)
         menu.addSeparator()

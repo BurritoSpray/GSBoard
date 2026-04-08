@@ -41,10 +41,10 @@ class MainWindow(QMainWindow):
         self._update_status()
 
     def _update_status(self):
-        pw = self.app_controller.pipewire
+        ac = self.app_controller.audio_controller
         engine = self.app_controller.engine
-        game_ok = pw.is_sink_active() and pw.is_source_active()
-        chat_ok = pw.is_chat_sink_active() and pw.is_chat_source_active()
+        game_ok = ac.is_game_sink_active() and ac.is_game_source_active()
+        chat_ok = ac.is_chat_sink_active() and ac.is_chat_source_active()
 
         game_state = ("ON" if engine.is_game_enabled() else "muted") if game_ok else "inactive"
         chat_state = ("ON" if engine.is_chat_enabled() else "muted") if chat_ok else "inactive"
