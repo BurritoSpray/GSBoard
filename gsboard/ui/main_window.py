@@ -7,6 +7,7 @@ from PyQt6.QtGui import QIcon
 from gsboard.ui.sound_grid import SoundGrid
 from gsboard.ui.settings import SettingsPanel
 from gsboard.ui.shortcut_editor import ShortcutEditor
+from gsboard.ui.games_tab import GamesTab
 
 
 class MainWindow(QMainWindow):
@@ -29,9 +30,11 @@ class MainWindow(QMainWindow):
         self.sound_grid = SoundGrid(self.app_controller)
         self.settings_panel = SettingsPanel(self.app_controller)
         self.shortcut_editor = ShortcutEditor(self.app_controller)
+        self.games_tab = GamesTab(self.app_controller)
 
         self.tabs.addTab(self.sound_grid, "Library")
         self.tabs.addTab(self.shortcut_editor, "Shortcuts")
+        self.tabs.addTab(self.games_tab, "Games")
         self.tabs.addTab(self.settings_panel, "Settings")
 
         self.status_bar = QStatusBar()

@@ -12,6 +12,8 @@ from gsboard.audio.engine import AudioEngine
 from gsboard.input.hotkeys import HotkeyManager, SESSION_TYPE
 from gsboard.macros.macro_engine import MacroEngine
 from gsboard.models.sound import Sound
+from gsboard.models.game_profile import GameProfile
+from gsboard.games.detector import ProcessDetector
 
 
 def _make_audio_controller(config: AppConfig) -> AudioController:
@@ -105,6 +107,9 @@ class AppController:
         self.engine = AudioEngine(self.audio_controller)
         self.hotkey_manager = HotkeyManager()
         self.macro_engine = MacroEngine()
+        self.game_detector = ProcessDetector()
+        self.game_detector.set_callback(self._on_game_detected)
+        self._game_macro_active: Optional[MacroConfig] = None
 
         self.main_window = None
         self._tray: QSystemTrayIcon = None
@@ -119,6 +124,7 @@ class AppController:
         self._start_audio_streams()
         self.hotkey_manager.start()
         self.reload_hotkeys()
+        self.reload_game_detection()
 
     def _start_audio_streams(self):
         self.engine.start()
@@ -139,8 +145,14 @@ class AppController:
         else:
             self.audio_controller.disable_mic_passthrough()
 
+    def _effective_global_macro(self) -> MacroConfig:
+        """Return the global macro, considering game detection override."""
+        if self._game_macro_active and self._game_macro_active.key:
+            return self._game_macro_active
+        return self.config.global_macro
+
     def play_sound(self, sound: Sound):
-        macro = sound.macro if sound.macro.key else self.config.global_macro
+        macro = sound.macro if sound.macro.key else self._effective_global_macro()
         if macro.key:
             self.macro_engine.execute(
                 macro,
@@ -240,10 +252,45 @@ class AppController:
         if self.main_window:
             self.main_window.refresh_channel_status()
 
+    def reload_game_detection(self):
+        """Update the process detector with current profiles and start/stop it."""
+        self.game_detector.stop()
+        if self.config.game_detection_enabled and not self.config.manual_game_profile:
+            self.game_detector.set_profiles(self.config.game_profiles)
+            self.game_detector.start()
+        self.apply_game_macro()
+
+    def apply_game_macro(self):
+        """Apply the correct game macro based on manual override or detection."""
+        if self.config.manual_game_profile:
+            for p in self.config.game_profiles:
+                if p.name == self.config.manual_game_profile:
+                    self._game_macro_active = p.macro
+                    return
+            self._game_macro_active = None
+        elif self.game_detector.active_profile:
+            self._game_macro_active = self.game_detector.active_profile.macro
+        else:
+            self._game_macro_active = None
+
+    def _on_game_detected(self, profile: Optional[GameProfile]):
+        """Called by ProcessDetector when the active game changes."""
+        if profile:
+            self._game_macro_active = profile.macro
+            print(f"[GameDetector] Detected: {profile.name} → macro key '{profile.macro.key}'")
+        else:
+            self._game_macro_active = None
+            print("[GameDetector] No matching game detected, using default global macro")
+        if self.main_window:
+            games_tab = getattr(self.main_window, 'games_tab', None)
+            if games_tab:
+                games_tab._update_status()
+
     def on_quit(self):
         if getattr(self, "_quitting", False):
             return
         self._quitting = True
+        self.game_detector.stop()
         self.hotkey_manager.stop()
         self.engine.stop()
         self.audio_controller.disable_mic_passthrough()

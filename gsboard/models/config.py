@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from gsboard.models.sound import Sound, MacroConfig
+from gsboard.models.game_profile import GameProfile
 
 
 CONFIG_DIR = Path.home() / ".config" / "gsboard"
@@ -30,6 +31,9 @@ class AppConfig:
         self.monitor_enabled: bool = True
         self.minimize_to_tray: bool = True
         self.global_macro: MacroConfig = MacroConfig()
+        self.game_profiles: List[GameProfile] = []
+        self.game_detection_enabled: bool = True
+        self.manual_game_profile: str = ""  # name of manually selected profile, empty = auto
 
     def save(self):
         CONFIG_DIR.mkdir(parents=True, exist_ok=True)
@@ -51,6 +55,9 @@ class AppConfig:
             "monitor_enabled": self.monitor_enabled,
             "minimize_to_tray": self.minimize_to_tray,
             "global_macro": self.global_macro.to_dict(),
+            "game_profiles": [p.to_dict() for p in self.game_profiles],
+            "game_detection_enabled": self.game_detection_enabled,
+            "manual_game_profile": self.manual_game_profile,
         }
         with open(CONFIG_FILE, "w") as f:
             json.dump(data, f, indent=2)
@@ -77,3 +84,6 @@ class AppConfig:
         self.monitor_enabled = data.get("monitor_enabled", True)
         self.minimize_to_tray = data.get("minimize_to_tray", True)
         self.global_macro = MacroConfig.from_dict(data.get("global_macro", {}))
+        self.game_profiles = [GameProfile.from_dict(p) for p in data.get("game_profiles", [])]
+        self.game_detection_enabled = data.get("game_detection_enabled", True)
+        self.manual_game_profile = data.get("manual_game_profile", "")
