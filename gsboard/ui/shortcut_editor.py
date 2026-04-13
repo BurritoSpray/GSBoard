@@ -199,6 +199,52 @@ class ShortcutEditor(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(8, 8, 8, 8)
 
+        # -- Global macro section --
+        gm_label = QLabel("Global Macro")
+        gm_label.setStyleSheet("font-weight: bold; font-size: 13px;")
+        layout.addWidget(gm_label)
+
+        gm_info = QLabel(
+            "Applied to all sounds that don't have their own macro configured."
+        )
+        gm_info.setStyleSheet("color: #888; font-size: 11px;")
+        layout.addWidget(gm_info)
+
+        gm_form = QHBoxLayout()
+        gm_form.setSpacing(8)
+
+        gm_form.addWidget(QLabel("Key:"))
+        self._gm_key = QLineEdit()
+        self._gm_key.setPlaceholderText("e.g.  b  or  f1")
+        self._gm_key.setMaximumWidth(100)
+        gm_form.addWidget(self._gm_key)
+
+        gm_form.addWidget(QLabel("Pre-delay:"))
+        self._gm_pre = QSpinBox()
+        self._gm_pre.setRange(0, 10000)
+        self._gm_pre.setSuffix(" ms")
+        gm_form.addWidget(self._gm_pre)
+
+        gm_form.addWidget(QLabel("Post-delay:"))
+        self._gm_post = QSpinBox()
+        self._gm_post.setRange(0, 10000)
+        self._gm_post.setSuffix(" ms")
+        gm_form.addWidget(self._gm_post)
+
+        gm_apply = QPushButton("Apply")
+        gm_apply.clicked.connect(self._apply_global_macro)
+        gm_form.addWidget(gm_apply)
+
+        gm_form.addStretch()
+        layout.addLayout(gm_form)
+
+        # -- Separator --
+        sep = QWidget()
+        sep.setFixedHeight(1)
+        sep.setStyleSheet("background-color: #444;")
+        layout.addWidget(sep)
+
+        # -- Per-sound shortcuts --
         info = QLabel(
             "Click a shortcut cell to record a key combination. "
             "Click 'Macro' to configure key-hold timing."
@@ -218,7 +264,20 @@ class ShortcutEditor(QWidget):
         self._table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         layout.addWidget(self._table)
 
+    def _apply_global_macro(self):
+        self.app_controller.config.global_macro = MacroConfig(
+            key=self._gm_key.text().strip(),
+            pre_delay_ms=self._gm_pre.value(),
+            post_delay_ms=self._gm_post.value(),
+        )
+        self.app_controller.save_config()
+
     def refresh(self):
+        gm = self.app_controller.config.global_macro
+        self._gm_key.setText(gm.key)
+        self._gm_pre.setValue(gm.pre_delay_ms)
+        self._gm_post.setValue(gm.post_delay_ms)
+
         sounds = self.app_controller.config.sounds
         self._table.setRowCount(len(sounds))
         for row, sound in enumerate(sounds):

@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 from typing import List, Optional
 
-from gsboard.models.sound import Sound
+from gsboard.models.sound import Sound, MacroConfig
 
 
 CONFIG_DIR = Path.home() / ".config" / "gsboard"
@@ -29,6 +29,7 @@ class AppConfig:
         self.loopback_shortcut: str = ""
         self.monitor_enabled: bool = True
         self.minimize_to_tray: bool = True
+        self.global_macro: MacroConfig = MacroConfig()
 
     def save(self):
         CONFIG_DIR.mkdir(parents=True, exist_ok=True)
@@ -49,6 +50,7 @@ class AppConfig:
             "loopback_shortcut": self.loopback_shortcut,
             "monitor_enabled": self.monitor_enabled,
             "minimize_to_tray": self.minimize_to_tray,
+            "global_macro": self.global_macro.to_dict(),
         }
         with open(CONFIG_FILE, "w") as f:
             json.dump(data, f, indent=2)
@@ -74,3 +76,4 @@ class AppConfig:
         self.loopback_shortcut = data.get("loopback_shortcut", "")
         self.monitor_enabled = data.get("monitor_enabled", True)
         self.minimize_to_tray = data.get("minimize_to_tray", True)
+        self.global_macro = MacroConfig.from_dict(data.get("global_macro", {}))

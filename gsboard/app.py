@@ -140,9 +140,10 @@ class AppController:
             self.audio_controller.disable_mic_passthrough()
 
     def play_sound(self, sound: Sound):
-        if sound.macro.key:
+        macro = sound.macro if sound.macro.key else self.config.global_macro
+        if macro.key:
             self.macro_engine.execute(
-                sound.macro,
+                macro,
                 self.engine.play,
                 sound.name,
                 sound.file_path,
