@@ -6,22 +6,26 @@ A free, open-source Linux soundboard that plays sounds through a virtual microph
 
 - Play sounds as if they come from your microphone
 - Mix multiple sounds simultaneously
-- Configurable per-app routing (e.g. sounds go to Arc Raiders but not Discord)
+- **Dual-channel routing** — separate virtual mics for game and chat apps, mute each independently
 - Global keyboard shortcuts to trigger sounds
-- Macro system — hold a key before/during/after a sound plays
+- **Macro system** — hold a key before/during/after a sound plays (global, per-game, or per-sound)
+- **Game detection** — automatically switch macro settings when a game launches (supports native and Wine/Proton games)
+- Loopback monitoring — hear your sounds through your headset
 - Drag-and-drop audio file import, folder scanning
-- In-app sound recording
 - System tray for background operation
-- Supports X11 and Wayland
+- Supports Windows, X11 and Wayland (KDE Plasma)
 
 ## Requirements
 
-- Linux with PipeWire
+### Linux
+- PipeWire with `pactl` and `pw-link` (included with PipeWire)
 - Python 3.10+
-- `pactl` and `pw-link` (included with PipeWire)
-- **Wayland/KDE:** `dbus-python` Python package (installed via `requirements.txt`); KGlobalAccel service (ships with KDE Plasma)
-- **Shortcut pass-through on Wayland:** `ydotool` + `ydotoold` daemon (system package, see [Troubleshooting](#troubleshooting))
-- **Shortcut pass-through on X11:** `xdotool` (system package)
+- **Wayland/KDE:** KGlobalAccel service (ships with KDE Plasma)
+- **Shortcut pass-through:** `ydotool` + `ydotoold` (Wayland) or `xdotool` (X11)
+
+### Windows
+- Python 3.10+
+- [VB-Cable](https://vb-audio.com/Cable/) — a free virtual audio cable that acts as the virtual microphone. Install it, then select "CABLE Input" as the output device in GSBoard and "CABLE Output" as the mic in your target app
 
 ## Installation
 
@@ -29,161 +33,92 @@ A free, open-source Linux soundboard that plays sounds through a virtual microph
 git clone https://github.com/yourname/GSBoard.git
 cd GSBoard
 python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt
+.venv/bin/pip install -e .
 ```
+
+Platform-specific dependencies (`evdev`, `dbus-python`) are installed automatically only on Linux.
 
 ## Running
 
 ```bash
-.venv/bin/python -m gsboard.main
-```
-
-Or install as a command and run with:
-
-```bash
-.venv/bin/pip install -e .
 .venv/bin/gsboard
 ```
 
 ## How It Works
 
-GSBoard creates a **virtual audio sink** (output device) using PipeWire. Every sound you play is routed to that sink. PipeWire automatically exposes the sink's **monitor** as a microphone source — this is what your other apps select as their mic input.
+GSBoard creates **virtual audio sinks** using PipeWire. Sounds you play are routed through these sinks, which appear as microphone sources in other apps.
 
 ```
-Your sounds → GSBoard virtual sink → Monitor source → Arc Raiders mic input
-Your real mic →────────────────────────────────────→ Discord mic input
+Your sounds -> GSBoard virtual sink -> Game mic input (e.g. Arc Raiders)
+Your real mic -> ----------------------------------------> Chat mic input (e.g. Discord)
 ```
 
-This means you can have sounds audible in one app (Arc Raiders) while your real mic goes to another (Discord), simply by choosing different mic inputs in each app's audio settings.
+Pick **"Monitor of GSBoard"** as the mic in the app where you want sounds, and leave your real mic selected everywhere else.
 
-## Setup Guide
+## Quick Start
 
-### Step 1 — Create the Virtual Microphone
-
-Open GSBoard and go to the **Settings** tab. At the bottom, under **Virtual Microphone**, click **Create Virtual Mic**. The status should turn green and show:
-
-> Active — select 'gsboard_sink.monitor' as mic in target app
-
-This creates a PipeWire audio device called **GSBoard**. It only needs to be done once per session — GSBoard recreates it automatically on startup.
-
-### Step 2 — Set the Virtual Mic as Input in Your Target App
-
-In the app where you want sounds to be heard (e.g. Arc Raiders):
-
-- Open that app's audio/voice settings
-- Find the **microphone input** or **voice input device** option
-- Select **"Monitor of GSBoard"** (or **"gsboard_sink.monitor"**)
-
-That app will now receive whatever GSBoard plays, instead of your real microphone.
-
-Any app where you do **not** change the mic input (e.g. Discord) will continue using your real microphone and will not hear your soundboard.
-
-### Step 3 — (Optional) Enable Mic Passthrough
-
-If you want your own voice to also come through the virtual mic — so the target app hears both you and the sounds — enable **mic passthrough**:
-
-1. Under **Audio Routing**, select your real microphone from the **Real Microphone** dropdown
-2. Check **Enable mic passthrough**
-3. Click **Apply**
-
-This links your real mic into the virtual sink so both your voice and the sounds are mixed together.
-
-### Step 4 — Add Sounds
-
-**Drag and drop** audio files directly onto the Library tab, or:
-
-- Click **+ Add Sound** to pick files from a file browser
-- Click **Scan Folder** to import all audio files from your configured sounds folder (set the folder path at the top of Settings)
-
-Supported formats: WAV, FLAC, OGG, MP3, AIFF
-
-Right-click any sound button to rename it, change its color, or adjust its individual volume.
-
-### Step 5 — Set Shortcuts
-
-Go to the **Shortcuts** tab. Click any cell in the **Shortcut** column and press the key combination you want. The shortcut is saved automatically and works globally (even when GSBoard is in the background or minimized to tray).
-
-Example shortcuts: `<ctrl>+<f1>`, `<alt>+b`, `f9`
-
-#### Pass Through
-
-By default, when a key is registered as a global shortcut it is exclusively grabbed — pressing it triggers GSBoard but the key no longer reaches other applications. Check the **Pass Through** checkbox next to a sound to re-inject the key press after the sound triggers, so the key continues to work normally in games or other apps.
-
-> **Note:** Pass-through on Wayland requires `ydotool` and its daemon `ydotoold`. On X11 it requires `xdotool`. See [Troubleshooting](#troubleshooting) for setup instructions.
+1. Open GSBoard, go to **Settings**, click **Create Virtual Mic**
+2. In your target app's audio settings, select **"Monitor of GSBoard"** as the microphone
+3. Add sounds via drag-and-drop or **+ Add Sound** in the Library tab
+4. (Optional) Set shortcuts in the **Shortcuts** tab
 
 ## Macros
 
-A macro lets you automatically hold down a key while a sound plays. This is useful in games where holding a key activates push-to-talk or a specific action.
+A macro holds down a key while a sound plays — useful for push-to-talk in games.
 
-In the **Shortcuts** tab, click **Edit Macro** next to a sound:
-
-| Field | Description |
+| Level | Where to set it |
 |---|---|
-| **Key to hold** | The keyboard key to press (e.g. `b`, `f1`, `v`) |
-| **Pre-sound delay** | Milliseconds to wait after pressing the key, before the sound starts |
-| **Post-sound delay** | Milliseconds to keep holding the key after the sound finishes |
+| **Global** | Shortcuts tab, top section |
+| **Per-game** | Games tab, per profile |
+| **Per-sound** | Shortcuts tab, "Edit Macro" button next to each sound |
 
-**Example:** Push-to-talk is bound to `b` in your game. Set key = `b`, pre-delay = `150ms`, post-delay = `100ms`. When you trigger the sound, GSBoard will press `b`, wait 150ms (enough time for the game to register PTT), play the sound, then hold for another 100ms before releasing.
+Per-sound macros override per-game macros, which override the global macro.
 
-Leave the key field empty to disable the macro for a sound.
+Each macro has three settings: the **key** to hold, a **pre-delay** (ms before the sound starts), and a **post-delay** (ms to keep holding after the sound ends). Use the **Reset** button in the macro editor to clear all fields.
 
-## Audio Settings Reference
+## Game Detection
+
+The **Games** tab lets you create game profiles that automatically activate a macro when a specific game is running.
+
+- **Process name:** the executable name as seen by the system (e.g. `arc_raider.exe` for a Proton game)
+- **Auto-detection:** GSBoard polls running processes and switches macros when a game starts or stops
+- **Manual override:** force a specific game profile's macro regardless of what's running
+- The active game profile is shown in the status bar
+
+Wine/Proton games are detected by scanning process command lines, so `.exe` names work even though the kernel only sees `wine-preloader`.
+
+## Audio Routing
 
 | Setting | Description |
 |---|---|
-| **Sound Library Folder** | Directory that **Scan Folder** searches for audio files |
-| **Output Device** | Where sounds are sent. Leave as default to use the GSBoard virtual sink. Only change this if you want sounds to go to a different device entirely |
-| **Real Microphone** | Your physical mic, used only for passthrough mixing |
-| **Mic Passthrough** | Routes your real mic into the virtual sink so your voice is also heard in the target app |
-| **Mic Passthrough Volume** | Volume of your voice in the passthrough mix |
-| **Master Volume** | Overall volume of all sounds played by GSBoard |
+| **Game mic / Chat mic** | Two independent virtual mic channels, each with a mute toggle and optional shortcut |
+| **Loopback** | Mirror sounds to your headset so you can hear what you're playing |
+| **Mic Passthrough** | Route your real mic into the virtual sink so the target app hears both you and the sounds |
+| **Master Volume** | Overall volume for all sounds |
 
 ## Supported Audio Formats
 
-GSBoard uses `soundfile` for loading audio. WAV, FLAC, OGG, and AIFF work natively. MP3 support requires `ffmpeg` to be installed on your system:
+WAV, FLAC, OGG, and AIFF work out of the box. MP3 requires `ffmpeg`:
 
 ```bash
-# Debian/Ubuntu/Mint
-sudo apt install ffmpeg
-
 # Arch/CachyOS
 sudo pacman -S ffmpeg
+
+# Debian/Ubuntu
+sudo apt install ffmpeg
 ```
 
 ## Troubleshooting
 
-**Virtual mic not appearing in target app**
-Run `pactl list sources short` in a terminal. You should see `gsboard_sink.monitor`. If not, click **Create Virtual Mic** in the Settings tab and check that PipeWire is running (`systemctl --user status pipewire`).
+**Virtual mic not appearing** — Run `pactl list sources short` and look for `gsboard_sink.monitor`. If missing, click **Create Virtual Mic** in Settings and check PipeWire is running.
 
-**No sound playing**
-Check that the output device in Settings points to the GSBoard sink, or leave it on default. Verify the virtual mic is active (green status in Settings).
+**Shortcuts not working on Wayland** — GSBoard uses KGlobalAccel on KDE Plasma. Make sure `dbus-python` is installed and the KGlobalAccel service is running.
 
-**Global shortcuts not working on Wayland (KDE)**
-GSBoard uses **KGlobalAccel** via DBus on KDE Plasma Wayland sessions. Make sure the `dbus-python` Python package is installed (`pip install dbus-python`) and that the KGlobalAccel service is running (it starts automatically with Plasma). On non-KDE Wayland compositors the xdg-desktop-portal GlobalShortcuts backend is used as a fallback.
-
-**Pass-through not working on Wayland**
-Key pass-through requires `ydotool` and its daemon `ydotoold`:
+**Pass-through not working** — Install `ydotool` + enable `ydotoold` (Wayland) or install `xdotool` (X11):
 ```bash
-# Arch/CachyOS
-sudo pacman -S ydotool
-systemctl --user enable --now ydotoold
-```
-```bash
-# Debian/Ubuntu/Mint
-sudo apt install ydotool
-systemctl --user enable --now ydotoold
-```
-If `ydotoold` is not running, `ydotool` will print an error and the key will not be re-injected.
+# Wayland
+sudo pacman -S ydotool && systemctl --user enable --now ydotoold
 
-**Pass-through not working on X11**
-X11 pass-through uses `xdotool`:
-```bash
-# Arch/CachyOS
+# X11
 sudo pacman -S xdotool
-
-# Debian/Ubuntu/Mint
-sudo apt install xdotool
 ```
-
-**Sounds are too quiet / too loud**
-Use the **Master Volume** slider in Settings, or right-click individual sound buttons to set per-sound volume.
