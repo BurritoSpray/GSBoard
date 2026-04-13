@@ -173,12 +173,23 @@ class MacroDialog(QDialog):
         info.setStyleSheet("color: #888; font-size: 11px;")
         layout.addWidget(info)
 
+        btn_row = QHBoxLayout()
+        reset_btn = QPushButton("Reset")
+        reset_btn.clicked.connect(self._reset)
+        btn_row.addWidget(reset_btn)
+        btn_row.addStretch()
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
+        btn_row.addWidget(buttons)
+        layout.addLayout(btn_row)
+
+    def _reset(self):
+        self._key_edit.clear()
+        self._pre_spin.setValue(0)
+        self._post_spin.setValue(0)
 
     def get_macro(self) -> MacroConfig:
         return MacroConfig(
