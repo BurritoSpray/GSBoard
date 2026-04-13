@@ -53,10 +53,27 @@ class MainWindow(QMainWindow):
         chat_state = ("ON" if engine.is_chat_enabled() else "muted") if chat_ok else "inactive"
         loopback_state = "ON" if engine.is_monitor_enabled() else "OFF"
 
+        # Active game detection
+        game_profile = None
+        detector = self.app_controller.game_detector
+        config = self.app_controller.config
+        if config.manual_game_profile:
+            for p in config.game_profiles:
+                if p.name == config.manual_game_profile:
+                    game_profile = p
+                    break
+        elif detector.active_profile:
+            game_profile = detector.active_profile
+
         if game_ok and chat_ok:
-            self._mic_label.setText(
-                f"Game mic: {game_state}  |  Chat mic: {chat_state}  |  Loopback: {loopback_state}"
-            )
+            parts = [
+                f"Game mic: {game_state}",
+                f"Chat mic: {chat_state}",
+                f"Loopback: {loopback_state}",
+            ]
+            if game_profile:
+                parts.append(f"Game: {game_profile.name}")
+            self._mic_label.setText("  |  ".join(parts))
             self._mic_label.setStyleSheet("color: #4caf50;")
         else:
             self._mic_label.setText("Virtual mics inactive — go to Settings to create them")
