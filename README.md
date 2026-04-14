@@ -30,7 +30,7 @@ A free, open-source Linux soundboard that plays sounds through a virtual microph
 ## Installation
 
 ```bash
-git clone https://github.com/yourname/GSBoard.git
+git clone https://github.com/BurritoSpray/GSBoard.git
 cd GSBoard
 python3 -m venv .venv
 .venv/bin/pip install -e .
