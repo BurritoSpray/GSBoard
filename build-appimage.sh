@@ -2,6 +2,7 @@
 set -euo pipefail
 
 APP_NAME="GSBoard"
+APP_VERSION="$(python3 -c "from gsboard import __version__; print(__version__)")"
 APP_DIR="AppDir"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
@@ -62,6 +63,6 @@ APPRUN
 chmod +x "$APP_DIR/AppRun"
 
 echo "==> Creating AppImage..."
-ARCH="$(uname -m)" appimagetool "$APP_DIR" "${APP_NAME}-$(uname -m).AppImage"
+ARCH="$(uname -m)" appimagetool "$APP_DIR" "${APP_NAME}-${APP_VERSION}-$(uname -m).AppImage"
 
-echo "==> Done! Output: ${APP_NAME}-$(uname -m).AppImage"
+echo "==> Done! Output: ${APP_NAME}-${APP_VERSION}-$(uname -m).AppImage"
