@@ -1,0 +1,7 @@
+[Desktop Entry]
+Name=GSBoard
+Exec=gsboard
+Icon=gsboard
+Type=Application
+Categories=AudioVideo;Audio;
+Comment=Gaming soundboard with macro support
