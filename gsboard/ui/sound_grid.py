@@ -462,7 +462,7 @@ class SoundGrid(QWidget):
     def _set_volume(self, sound: Sound):
         val, ok = QInputDialog.getDouble(
             self, "Set Volume", "Volume (0.0 – 1.0):",
-            value=sound.volume, min=0.0, max=1.0, decimals=2,
+            value=sound.volume, min=0.0, max=1.0, decimals=2, step=0.05
         )
         if ok:
             sound.volume = val
