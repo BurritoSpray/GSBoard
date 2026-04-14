@@ -1,8 +1,9 @@
 from setuptools import setup, find_packages
+from gsboard import __version__
 
 setup(
     name="gsboard",
-    version="0.1.0",
+    version=__version__,
     packages=find_packages(),
     install_requires=[
         "PyQt6>=6.5",

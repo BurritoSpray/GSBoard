@@ -8,6 +8,7 @@ from gsboard.ui.sound_grid import SoundGrid
 from gsboard.ui.settings import SettingsPanel
 from gsboard.ui.shortcut_editor import ShortcutEditor
 from gsboard.ui.games_tab import GamesTab
+from gsboard.ui.about_tab import AboutTab
 
 
 class MainWindow(QMainWindow):
@@ -36,6 +37,7 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(self.shortcut_editor, "Shortcuts")
         self.tabs.addTab(self.games_tab, "Games")
         self.tabs.addTab(self.settings_panel, "Settings")
+        self.tabs.addTab(AboutTab(), "About")
 
         self.status_bar = QStatusBar()
         self.setStatusBar(self.status_bar)
