@@ -51,8 +51,14 @@ class MainWindow(QMainWindow):
         game_ok = ac.is_game_sink_active() and ac.is_game_source_active()
         chat_ok = ac.is_chat_sink_active() and ac.is_chat_source_active()
 
+        import sys
         game_state = ("ON" if engine.is_game_enabled() else "muted") if game_ok else "inactive"
-        chat_state = ("ON" if engine.is_chat_enabled() else "muted") if chat_ok else "inactive"
+        if chat_ok:
+            chat_state = "ON" if engine.is_chat_enabled() else "muted"
+        elif sys.platform == "win32":
+            chat_state = "N/A"
+        else:
+            chat_state = "inactive"
         loopback_state = "ON" if engine.is_monitor_enabled() else "OFF"
 
         # Active game detection
@@ -67,7 +73,7 @@ class MainWindow(QMainWindow):
         elif detector.active_profile:
             game_profile = detector.active_profile
 
-        if game_ok and chat_ok:
+        if game_ok or chat_ok:
             parts = [
                 f"Game mic: {game_state}",
                 f"Chat mic: {chat_state}",
