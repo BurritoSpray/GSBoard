@@ -353,12 +353,19 @@ class SettingsPanel(QWidget):
         self._update_vm_status()
         if not ok:
             from PyQt6.QtWidgets import QMessageBox
-            QMessageBox.warning(
-                self, "Virtual Mic",
-                "Failed to create virtual audio devices.\n"
-                "On Linux: is PipeWire running?\n"
-                "On Windows: install VB-Cable (https://vb-audio.com/Cable/)."
+            from PyQt6.QtCore import Qt
+            box = QMessageBox(self)
+            box.setIcon(QMessageBox.Icon.Warning)
+            box.setWindowTitle("Virtual Mic")
+            box.setTextFormat(Qt.TextFormat.RichText)
+            box.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
+            box.setText(
+                "Failed to create virtual audio devices.<br>"
+                "On Linux: is PipeWire running?<br>"
+                'On Windows: install '
+                '<a href="https://vb-audio.com/Cable/">VB-Cable</a>.'
             )
+            box.exec()
         else:
             self.app_controller.apply_audio_settings()
 
