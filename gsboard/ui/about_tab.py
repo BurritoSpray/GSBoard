@@ -5,6 +5,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QPixmap
 
 from gsboard import __version__ as VERSION
+from gsboard.resources import resource_path
 REPO_URL = "https://github.com/BurritoSpray/GSBoard"
 
 
@@ -18,9 +19,7 @@ class AboutTab(QWidget):
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         # Logo
-        icon_path = os.path.join(
-            os.path.dirname(__file__), "..", "resources", "gsboard.png"
-        )
+        icon_path = resource_path("gsboard.png")
         if os.path.isfile(icon_path):
             logo_label = QLabel()
             pixmap = QPixmap(icon_path).scaled(
