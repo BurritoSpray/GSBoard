@@ -11,7 +11,7 @@ from gsboard.audio.backend import AudioController
 from gsboard.audio.engine import AudioEngine
 from gsboard.input.hotkeys import HotkeyManager, SESSION_TYPE
 from gsboard.macros.macro_engine import MacroEngine
-from gsboard.models.sound import Sound
+from gsboard.models.sound import Sound, MacroConfig
 from gsboard.models.game_profile import GameProfile
 from gsboard.games.detector import ProcessDetector
 
