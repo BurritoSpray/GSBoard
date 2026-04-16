@@ -3,6 +3,22 @@ import threading
 from typing import Optional, List, Tuple
 
 from gsboard.audio.backend import AudioController, PlayHandle
+from gsboard.audio.capabilities import AudioCapabilities, ChannelInfo
+
+
+_PIPEWIRE_CAPABILITIES = AudioCapabilities(
+    supports_dual_channels=True,
+    supports_mic_passthrough=True,
+    supports_virtual_device_management=True,
+    channels_hint_html=(
+        "Each channel is a separate virtual microphone. "
+        "Select <b>GSBoard Game Mic</b> in your game and "
+        "<b>GSBoard Chat Mic</b> in Discord. "
+        "Use shortcuts to mute/unmute each channel independently."
+    ),
+    setup_hint_html=None,
+    mic_passthrough_hint=None,
+)
 
 
 # ------------------------------------------------------------------
@@ -44,6 +60,49 @@ class PipeWireController(AudioController):
         self._chat_sink_module_id: Optional[str] = None
         self._chat_source_module_id: Optional[str] = None
         self._loopback_module_ids: List[str] = []
+
+    # ------------------------------------------------------------------
+    # AudioController — capabilities
+    # ------------------------------------------------------------------
+
+    @property
+    def capabilities(self) -> AudioCapabilities:
+        return _PIPEWIRE_CAPABILITIES
+
+    def get_channel_info(self, channel: str) -> ChannelInfo:
+        if channel == "game":
+            label = "Game"
+            sink_active = self.is_game_sink_active()
+            src_active = self.is_game_source_active()
+            source_id = self.game_source_id
+        elif channel == "chat":
+            label = "Chat"
+            sink_active = self.is_chat_sink_active()
+            src_active = self.is_chat_source_active()
+            source_id = self.chat_source_id
+        else:
+            raise ValueError(f"Unknown channel: {channel!r}")
+
+        if sink_active and src_active:
+            return ChannelInfo(
+                label=label,
+                active=True,
+                device_name=source_id,
+                short_state="active",
+            )
+        if sink_active:
+            return ChannelInfo(
+                label=label,
+                active=False,
+                unavailable_html=f"{label}: sink active, mic source missing",
+                short_state="partial",
+            )
+        return ChannelInfo(
+            label=label,
+            active=False,
+            unavailable_html=f"{label}: inactive",
+            short_state="inactive",
+        )
 
     # ------------------------------------------------------------------
     # AudioController — virtual device identifiers

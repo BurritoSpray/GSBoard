@@ -3,6 +3,8 @@
 from abc import ABC, abstractmethod
 from typing import List, Tuple, Optional
 
+from gsboard.audio.capabilities import AudioCapabilities, ChannelInfo
+
 
 class PlayHandle(ABC):
     """Opaque handle for a single audio stream playing on one device."""
@@ -27,6 +29,24 @@ class AudioController(ABC):
     Linux / PipeWire  →  PipeWireController  (gsboard/audio/pipewire.py)
     Windows           →  WindowsAudioController  (gsboard/audio/windows.py)
     """
+
+    # ------------------------------------------------------------------
+    # Capabilities
+    # ------------------------------------------------------------------
+
+    @property
+    @abstractmethod
+    def capabilities(self) -> AudioCapabilities:
+        """What this backend can do in principle (driver-level support)."""
+        ...
+
+    @abstractmethod
+    def get_channel_info(self, channel: str) -> ChannelInfo:
+        """Return the runtime status and UX hints for one channel.
+
+        ``channel`` is ``"game"`` or ``"chat"``.
+        """
+        ...
 
     # ------------------------------------------------------------------
     # Virtual device identifiers

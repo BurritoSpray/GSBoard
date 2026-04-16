@@ -19,6 +19,15 @@ import sounddevice as sd
 import soundfile as sf
 
 from gsboard.audio.backend import AudioController, PlayHandle
+from gsboard.audio.capabilities import AudioCapabilities, ChannelInfo
+
+
+# URLs users are pointed at when parts of the VB-Cable suite are missing.
+VBCABLE_INSTALL_URL = "https://vb-audio.com/Cable/"
+VBCABLE_B_PURCHASE_URL = (
+    "https://shop.vb-audio.com/en/win-apps/12-vb-cable-ab.html"
+    "#/30-donation_s-p1_i_m_a_fan"
+)
 
 # Name fragments used to auto-detect VB-Cable devices
 _VBCABLE_GAME_HINTS = ["CABLE Input", "VB-Audio Virtual Cable"]
@@ -113,6 +122,87 @@ class WindowsAudioController(AudioController):
         # enumerate it programmatically, so store a descriptive placeholder.
         self._game_source = "CABLE Output (VB-Audio Virtual Cable)"
         self._chat_source = "CABLE Output B (VB-Audio Cable B)"
+
+    # ------------------------------------------------------------------
+    # AudioController — capabilities
+    # ------------------------------------------------------------------
+
+    @property
+    def capabilities(self) -> AudioCapabilities:
+        return AudioCapabilities(
+            # Dual channels only possible when both VB-Cable + VB-Cable B are
+            # present.  Reported dynamically so the UI reflects what the user
+            # actually has installed.
+            supports_dual_channels=bool(self._game_sink and self._chat_sink),
+            supports_mic_passthrough=False,
+            supports_virtual_device_management=False,
+            channels_hint_html=(
+                "Sounds are routed through <b>VB-Cable</b>. "
+                "Select <b>CABLE Output</b> as the microphone in your "
+                "target app (game, OBS, etc.). "
+                "The Chat channel requires a second cable "
+                f"(<a href='{VBCABLE_B_PURCHASE_URL}'>VB-Cable B</a>) — "
+                "most users only need the Game channel."
+            ),
+            setup_hint_html=(
+                "Virtual mic routing on Windows is handled by "
+                f"<a href='{VBCABLE_INSTALL_URL}'>VB-Cable</a> "
+                "(free, installed separately). "
+                "Install or uninstall it from Windows Settings."
+            ),
+            mic_passthrough_hint=(
+                "Mic passthrough is handled by VB-Cable/VoiceMeeter on Windows"
+            ),
+        )
+
+    def get_channel_info(self, channel: str) -> ChannelInfo:
+        if channel == "game":
+            return self._channel_info_or_missing(
+                "Game",
+                self.is_game_sink_active(),
+                self.is_game_source_active(),
+                self.game_source_id,
+                missing_html=(
+                    f"Game: install <a href='{VBCABLE_INSTALL_URL}'>VB-Cable</a>"
+                ),
+            )
+        if channel == "chat":
+            return self._channel_info_or_missing(
+                "Chat",
+                self.is_chat_sink_active(),
+                self.is_chat_source_active(),
+                self.chat_source_id,
+                missing_html=(
+                    "Chat: requires a second virtual cable "
+                    f"(<a href='{VBCABLE_B_PURCHASE_URL}'>VB-Cable B, paid</a>) "
+                    "— not needed for most setups"
+                ),
+                missing_short_state="n/a",
+            )
+        raise ValueError(f"Unknown channel: {channel!r}")
+
+    @staticmethod
+    def _channel_info_or_missing(
+        label: str,
+        sink_active: bool,
+        src_active: bool,
+        source_id: Optional[str],
+        missing_html: str,
+        missing_short_state: str = "inactive",
+    ) -> ChannelInfo:
+        if sink_active and src_active:
+            return ChannelInfo(
+                label=label,
+                active=True,
+                device_name=source_id,
+                short_state="active",
+            )
+        return ChannelInfo(
+            label=label,
+            active=False,
+            unavailable_html=missing_html,
+            short_state=missing_short_state,
+        )
 
     # ------------------------------------------------------------------
     # AudioController — virtual device identifiers

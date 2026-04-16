@@ -48,17 +48,19 @@ class MainWindow(QMainWindow):
     def _update_status(self):
         ac = self.app_controller.audio_controller
         engine = self.app_controller.engine
-        game_ok = ac.is_game_sink_active() and ac.is_game_source_active()
-        chat_ok = ac.is_chat_sink_active() and ac.is_chat_source_active()
+        game_info = ac.get_channel_info("game")
+        chat_info = ac.get_channel_info("chat")
+        game_ok = game_info.active
+        chat_ok = chat_info.active
 
-        import sys
-        game_state = ("ON" if engine.is_game_enabled() else "muted") if game_ok else "inactive"
-        if chat_ok:
-            chat_state = "ON" if engine.is_chat_enabled() else "muted"
-        elif sys.platform == "win32":
-            chat_state = "N/A"
-        else:
-            chat_state = "inactive"
+        game_state = (
+            ("ON" if engine.is_game_enabled() else "muted")
+            if game_ok else game_info.short_state.upper()
+        )
+        chat_state = (
+            ("ON" if engine.is_chat_enabled() else "muted")
+            if chat_ok else chat_info.short_state.upper()
+        )
         loopback_state = "ON" if engine.is_monitor_enabled() else "OFF"
 
         # Active game detection
