@@ -77,6 +77,13 @@ class SettingsPanel(QWidget):
         self._mic_vol_slider.valueChanged.connect(self._mic_vol_changed)
         audio_form.addRow("Mic Passthrough Volume:", self._mic_vol_slider)
 
+        if sys.platform == "win32":
+            self._passthrough_check.setEnabled(False)
+            self._passthrough_check.setToolTip(
+                "Mic passthrough is handled by VB-Cable/VoiceMeeter on Windows"
+            )
+            self._mic_vol_slider.setEnabled(False)
+
         layout.addWidget(audio_group)
 
         # --- Master volume ---
@@ -110,11 +117,20 @@ class SettingsPanel(QWidget):
         ch_group = QGroupBox("Output Channels")
         ch_form = QFormLayout(ch_group)
 
-        ch_hint = QLabel(
-            "Each channel is a separate virtual microphone. "
-            "Select <b>GSBoard Game Mic</b> in your game and <b>GSBoard Chat Mic</b> in Discord. "
-            "Use shortcuts to mute/unmute each channel independently."
-        )
+        import sys
+        if sys.platform == "win32":
+            ch_hint = QLabel(
+                "Sounds are routed through <b>VB-Cable</b>. "
+                "Select <b>CABLE Output</b> as the microphone in your target app (game, OBS, etc.). "
+                "The Chat channel requires a second cable (VB-Cable B) — "
+                "most users only need the Game channel."
+            )
+        else:
+            ch_hint = QLabel(
+                "Each channel is a separate virtual microphone. "
+                "Select <b>GSBoard Game Mic</b> in your game and <b>GSBoard Chat Mic</b> in Discord. "
+                "Use shortcuts to mute/unmute each channel independently."
+            )
         ch_hint.setWordWrap(True)
         ch_hint.setStyleSheet("color: #aaa; font-size: 11px;")
         ch_form.addRow(ch_hint)
@@ -161,17 +177,30 @@ class SettingsPanel(QWidget):
 
         self._vm_status_label = QLabel()
         self._vm_status_label.setWordWrap(True)
+        self._vm_status_label.setOpenExternalLinks(True)
         vm_layout.addWidget(self._vm_status_label)
 
-        btn_row = QHBoxLayout()
-        btn_row.addStretch()
-        create_btn = QPushButton("Create Virtual Mic")
-        create_btn.clicked.connect(self._create_virtual_mic)
-        btn_row.addWidget(create_btn)
-        destroy_btn = QPushButton("Destroy Virtual Mic")
-        destroy_btn.clicked.connect(self._destroy_virtual_mic)
-        btn_row.addWidget(destroy_btn)
-        vm_layout.addLayout(btn_row)
+        if sys.platform == "win32":
+            win_hint = QLabel(
+                "Virtual mic routing on Windows is handled by "
+                "<a href='https://vb-audio.com/Cable/'>VB-Cable</a> "
+                "(free, installed separately). "
+                "Install or uninstall it from Windows Settings."
+            )
+            win_hint.setOpenExternalLinks(True)
+            win_hint.setWordWrap(True)
+            win_hint.setStyleSheet("color: #aaa; font-size: 11px;")
+            vm_layout.addWidget(win_hint)
+        else:
+            btn_row = QHBoxLayout()
+            btn_row.addStretch()
+            create_btn = QPushButton("Create Virtual Mic")
+            create_btn.clicked.connect(self._create_virtual_mic)
+            btn_row.addWidget(create_btn)
+            destroy_btn = QPushButton("Destroy Virtual Mic")
+            destroy_btn.clicked.connect(self._destroy_virtual_mic)
+            btn_row.addWidget(destroy_btn)
+            vm_layout.addLayout(btn_row)
 
         layout.addWidget(vm_group)
 
@@ -349,6 +378,7 @@ class SettingsPanel(QWidget):
         self.refresh_channel_status()
 
     def _create_virtual_mic(self):
+        import sys
         ok = self.app_controller.audio_controller.create_virtual_devices()
         self._update_vm_status()
         if not ok:
@@ -368,12 +398,28 @@ class SettingsPanel(QWidget):
             box.exec()
         else:
             self.app_controller.apply_audio_settings()
+            if sys.platform == "win32":
+                from PyQt6.QtWidgets import QMessageBox
+                QMessageBox.information(
+                    self, "Virtual Mic",
+                    "VB-Cable detected. The virtual mic is ready to use.\n"
+                    "Select \"CABLE Output\" as the microphone in your target app."
+                )
 
     def _destroy_virtual_mic(self):
+        import sys
         self.app_controller.audio_controller.destroy_virtual_devices()
         self._update_vm_status()
+        if sys.platform == "win32":
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.information(
+                self, "Virtual Mic",
+                "Virtual audio cables on Windows are managed by VB-Cable.\n"
+                "To remove them, uninstall VB-Cable from Windows Settings."
+            )
 
     def _update_vm_status(self):
+        import sys
         ac = self.app_controller.audio_controller
         lines = []
 
@@ -390,6 +436,13 @@ class SettingsPanel(QWidget):
             elif sink_active:
                 lines.append(
                     f"<span style='color:#ff9800'>⚠ {label}: sink active, mic source missing</span>"
+                )
+            elif sys.platform == "win32" and label == "Chat":
+                lines.append(
+                    "<span style='color:#888'>— Chat: requires a second virtual cable "
+                    "(<a href='https://shop.vb-audio.com/en/win-apps/12-vb-cable-ab.html"
+                    "#/30-donation_s-p1_i_m_a_fan'>VB-Cable B, paid</a>) "
+                    "— not needed for most setups</span>"
                 )
             else:
                 lines.append(

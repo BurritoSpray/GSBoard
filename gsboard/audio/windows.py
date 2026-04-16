@@ -205,10 +205,6 @@ class WindowsAudioController(AudioController):
 
     def enable_mic_passthrough(self, mic_device_id: str,
                                volume: float) -> bool:
-        print(
-            "[WindowsAudio] Mic passthrough is not automatically configured "
-            "on Windows. Use VB-Cable + VoiceMeeter for manual routing."
-        )
         return False
 
     def disable_mic_passthrough(self):
