@@ -13,7 +13,7 @@ CONFIG_FILE = CONFIG_DIR / "config.json"
 
 class AppConfig:
     def __init__(self):
-        self.sounds_folder: str = str(Path.home() / "Documents" / "git" / "GSBoard" / "sounds")
+        self.sounds_folder: str = str(Path.home() / "Documents" / "GSBoard" / "sounds")
         self.sounds: List[Sound] = []
         self.output_device: Optional[str] = None
         self.mic_device: Optional[str] = None
