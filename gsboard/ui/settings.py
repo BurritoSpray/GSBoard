@@ -269,9 +269,11 @@ class SettingsPanel(QWidget):
         cfg = self.app_controller.config
         ac = self.app_controller.audio_controller
 
+        self._output_combo.blockSignals(True)
         self._output_combo.clear()
         sinks = ac.list_output_devices()
-        selected_index = 0
+        cable_names = {n for n in (ac.game_sink_id, ac.chat_sink_id) if n}
+        first_non_cable = -1
         for name, desc in sinks:
             if name == ac.game_sink_id:
                 label = f"{desc}  ★ (GSBoard Game)"
@@ -280,18 +282,35 @@ class SettingsPanel(QWidget):
             else:
                 label = desc
             self._output_combo.addItem(label, name)
-            if name == ac.game_sink_id:
-                selected_index = self._output_combo.count() - 1
+            if name not in cable_names and first_non_cable < 0:
+                first_non_cable = self._output_combo.count() - 1
         if not sinks:
             self._output_combo.addItem("(no output devices found)", None)
 
-        target = cfg.output_device or ac.game_sink_id
-        for i in range(self._output_combo.count()):
-            if self._output_combo.itemData(i) == target:
-                self._output_combo.setCurrentIndex(i)
-                break
-        else:
-            self._output_combo.setCurrentIndex(selected_index)
+        # Default to the first real headset/speaker, never VB-Cable.
+        fallback = first_non_cable if first_non_cable >= 0 else 0
+
+        target = cfg.output_device or ""
+        if target in cable_names:
+            # A VB-Cable can never be a valid monitor — the user wouldn't
+            # hear anything. Treat leftover cable selections as "no choice".
+            target = ""
+        chosen = -1
+        if target:
+            for i in range(self._output_combo.count()):
+                if self._output_combo.itemData(i) == target:
+                    chosen = i
+                    break
+            # Legacy MME names get truncated to 31 chars; tolerate that so
+            # a pre-WASAPI config doesn't silently lose the user's choice.
+            if chosen < 0 and len(target) >= 20:
+                for i in range(self._output_combo.count()):
+                    data = self._output_combo.itemData(i) or ""
+                    if data.startswith(target):
+                        chosen = i
+                        break
+        self._output_combo.setCurrentIndex(chosen if chosen >= 0 else fallback)
+        self._output_combo.blockSignals(False)
 
         self._mic_combo.clear()
         self._mic_combo.addItem("(none)", None)
