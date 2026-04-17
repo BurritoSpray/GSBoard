@@ -174,3 +174,10 @@ class AudioController(ABC):
     def disable_mic_passthrough(self):
         """Stop all mic passthrough routing."""
         ...
+
+    def set_mic_passthrough_volume(self, volume: float) -> None:
+        """Update a running passthrough's volume without restarting it.
+
+        Default: no-op — backends without cheap live volume should leave
+        the slider's debounced save-and-reapply to pick up the change.
+        """

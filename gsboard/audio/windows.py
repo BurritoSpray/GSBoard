@@ -416,6 +416,10 @@ class WindowsAudioController(AudioController):
             self._passthrough.stop()
             self._passthrough = None
 
+    def set_mic_passthrough_volume(self, volume: float) -> None:
+        if self._passthrough is not None:
+            self._passthrough.set_volume(volume)
+
 
 # ------------------------------------------------------------------
 # Helpers

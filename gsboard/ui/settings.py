@@ -6,7 +6,7 @@ from PyQt6.QtWidgets import (
     QFileDialog, QGroupBox, QSpinBox, QScrollArea, QMessageBox
 )
 from gsboard.ui.shortcut_editor import ShortcutCaptureButton
-from PyQt6.QtCore import Qt, QObject, QEvent
+from PyQt6.QtCore import Qt, QObject, QEvent, QTimer
 
 
 class _NoWheelFilter(QObject):
@@ -25,9 +25,18 @@ class SettingsPanel(QWidget):
         super().__init__()
         self.app_controller = app_controller
         self._no_wheel_filter = _NoWheelFilter(self)
+        # Guards re-entry during _populate so programmatic setValue/setChecked
+        # calls don't fire the auto-apply handlers.
+        self._loading = True
+        # Debounces config saves while the user is dragging a slider.
+        self._save_timer = QTimer(self)
+        self._save_timer.setSingleShot(True)
+        self._save_timer.setInterval(300)
+        self._save_timer.timeout.connect(self.app_controller.save_config)
         self._build_ui()
         self._install_no_wheel()
         self._populate()
+        self._loading = False
 
     def _install_no_wheel(self):
         """Stop combos and sliders from stealing wheel events while the
@@ -76,6 +85,7 @@ class SettingsPanel(QWidget):
         audio_form.addRow(output_hint)
 
         self._output_combo = QComboBox()
+        self._output_combo.currentIndexChanged.connect(self._output_changed)
         audio_form.addRow("Monitor Output (headset):", self._output_combo)
 
         refresh_btn = QPushButton("Refresh Devices")
@@ -85,6 +95,7 @@ class SettingsPanel(QWidget):
         audio_form.addRow(QLabel(""))
 
         self._mic_combo = QComboBox()
+        self._mic_combo.currentIndexChanged.connect(self._mic_changed)
         audio_form.addRow("Your Real Microphone:", self._mic_combo)
 
         self._passthrough_check = QCheckBox(
@@ -119,6 +130,7 @@ class SettingsPanel(QWidget):
         vol_form.addRow("Master Volume:", self._master_vol_slider)
 
         self._monitor_check = QCheckBox("Hear sounds in my headset (monitor loopback)")
+        self._monitor_check.toggled.connect(self._monitor_toggled)
         vol_form.addRow(self._monitor_check)
 
         self._loopback_shortcut_btn = ShortcutCaptureButton(
@@ -232,14 +244,11 @@ class SettingsPanel(QWidget):
         self._minimize_to_tray_check = QCheckBox(
             "Minimize to tray when closing the window (quit from tray menu)"
         )
+        self._minimize_to_tray_check.toggled.connect(self._tray_toggled)
         behavior_form.addRow(self._minimize_to_tray_check)
         layout.addWidget(behavior_group)
 
         layout.addStretch()
-
-        apply_btn = QPushButton("Apply")
-        apply_btn.clicked.connect(self._apply)
-        layout.addWidget(apply_btn)
 
         # Wire immediate conflict detection for all shortcut buttons
         for label, btn in self._settings_shortcut_buttons():
@@ -312,6 +321,7 @@ class SettingsPanel(QWidget):
         self._output_combo.setCurrentIndex(chosen if chosen >= 0 else fallback)
         self._output_combo.blockSignals(False)
 
+        self._mic_combo.blockSignals(True)
         self._mic_combo.clear()
         self._mic_combo.addItem("(none)", None)
         sources = ac.list_input_devices()
@@ -322,6 +332,7 @@ class SettingsPanel(QWidget):
             for i in range(self._mic_combo.count()):
                 if self._mic_combo.itemData(i) == cfg.mic_device:
                     self._mic_combo.setCurrentIndex(i)
+        self._mic_combo.blockSignals(False)
 
         self._refresh_channel_devices()
 
@@ -406,66 +417,126 @@ class SettingsPanel(QWidget):
                 if sibling_btn is not btn and sibling_btn.get_shortcut() == new_sc:
                     conflict = sibling_label
                     break
-        if not conflict:
+        if conflict:
+            result = QMessageBox.question(
+                self, "Shortcut Conflict",
+                f"<b>{new_sc}</b> is already used by <b>{conflict}</b>.<br><br>"
+                f"Overwrite and assign to <b>{label}</b>?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            )
+            if result == QMessageBox.StandardButton.Yes:
+                self.app_controller.clear_shortcut(new_sc)
+                for _, sibling_btn in self._settings_shortcut_buttons():
+                    if sibling_btn is not btn and sibling_btn.get_shortcut() == new_sc:
+                        sibling_btn.set_shortcut("")
+            else:
+                btn.set_shortcut(old_sc)
+                return
+        self._commit_shortcuts()
+
+    def _commit_shortcuts(self):
+        """Write every shortcut button's value into config and restart
+        the hotkey listener. Called after a capture (possibly post-conflict
+        resolution)."""
+        if self._loading:
             return
-        result = QMessageBox.question(
-            self, "Shortcut Conflict",
-            f"<b>{new_sc}</b> is already used by <b>{conflict}</b>.<br><br>"
-            f"Overwrite and assign to <b>{label}</b>?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-        )
-        if result == QMessageBox.StandardButton.Yes:
-            self.app_controller.clear_shortcut(new_sc)
-            for _, sibling_btn in self._settings_shortcut_buttons():
-                if sibling_btn is not btn and sibling_btn.get_shortcut() == new_sc:
-                    sibling_btn.set_shortcut("")
-        else:
-            btn.set_shortcut(old_sc)
-
-    def _browse_folder(self):
-        folder = QFileDialog.getExistingDirectory(self, "Select Sounds Folder")
-        if folder:
-            self._folder_edit.setText(folder)
-
-    def _toggle_passthrough(self, checked: bool):
-        pass
-
-    def _mic_vol_changed(self, value: int):
-        pass
-
-    def _master_vol_changed(self, value: int):
-        self.app_controller.engine.set_master_volume(value / 100)
-        self.app_controller.config.master_volume = value / 100
-
-    def _game_toggled(self, checked: bool):
-        pass  # applied on Apply
-
-    def _chat_toggled(self, checked: bool):
-        pass  # applied on Apply
-
-    def _apply(self):
         cfg = self.app_controller.config
-
-        cfg.sounds_folder = self._folder_edit.text()
-        cfg.output_device = self._output_combo.currentData()
-        cfg.mic_device = self._mic_combo.currentData()
-        cfg.mic_passthrough = self._passthrough_check.isChecked()
-        cfg.mic_passthrough_volume = self._mic_vol_slider.value() / 100
-        cfg.master_volume = self._master_vol_slider.value() / 100
-        cfg.monitor_enabled = self._monitor_check.isChecked()
-        self.app_controller.engine.set_monitor_enabled(cfg.monitor_enabled)
-        cfg.channel_game_enabled = self._game_check.isChecked()
-        cfg.channel_chat_enabled = self._chat_check.isChecked()
         cfg.channel_game_shortcut = self._game_shortcut_btn.get_shortcut()
         cfg.channel_chat_shortcut = self._chat_shortcut_btn.get_shortcut()
         cfg.stop_all_shortcut = self._stop_all_shortcut_btn.get_shortcut()
         cfg.loopback_shortcut = self._loopback_shortcut_btn.get_shortcut()
-        cfg.minimize_to_tray = self._minimize_to_tray_check.isChecked()
         self.app_controller.save_config()
-        self.app_controller.apply_audio_settings()
         self.app_controller.reload_hotkeys()
-        self._update_vm_status()
+
+    def _browse_folder(self):
+        folder = QFileDialog.getExistingDirectory(self, "Select Sounds Folder")
+        if not folder:
+            return
+        self._folder_edit.setText(folder)
+        self.app_controller.config.sounds_folder = folder
+        self.app_controller.save_config()
+
+    def _output_changed(self, _index: int):
+        if self._loading:
+            return
+        cfg = self.app_controller.config
+        cfg.output_device = self._output_combo.currentData()
+        self.app_controller.engine.set_monitor_device(cfg.output_device)
+        self.app_controller.save_config()
+
+    def _mic_changed(self, _index: int):
+        if self._loading:
+            return
+        cfg = self.app_controller.config
+        cfg.mic_device = self._mic_combo.currentData()
+        self.app_controller.save_config()
+        self._apply_mic_passthrough()
+
+    def _toggle_passthrough(self, checked: bool):
+        if self._loading:
+            return
+        self.app_controller.config.mic_passthrough = checked
+        self.app_controller.save_config()
+        self._apply_mic_passthrough()
+
+    def _mic_vol_changed(self, value: int):
+        if self._loading:
+            return
+        self.app_controller.config.mic_passthrough_volume = value / 100
+        # Live-update a running passthrough so the slider is responsive
+        # without tearing down the stream on every tick.
+        self.app_controller.audio_controller.set_mic_passthrough_volume(
+            value / 100
+        )
+        self._save_timer.start()
+
+    def _master_vol_changed(self, value: int):
+        if self._loading:
+            return
+        self.app_controller.engine.set_master_volume(value / 100)
+        self.app_controller.config.master_volume = value / 100
+        self._save_timer.start()
+
+    def _monitor_toggled(self, checked: bool):
+        if self._loading:
+            return
+        cfg = self.app_controller.config
+        cfg.monitor_enabled = checked
+        self.app_controller.engine.set_monitor_enabled(checked)
+        self.app_controller.save_config()
+
+    def _game_toggled(self, checked: bool):
+        if self._loading:
+            return
+        cfg = self.app_controller.config
+        cfg.channel_game_enabled = checked
+        self.app_controller.engine.set_game_enabled(checked)
+        self.app_controller.save_config()
         self.refresh_channel_status()
+
+    def _chat_toggled(self, checked: bool):
+        if self._loading:
+            return
+        cfg = self.app_controller.config
+        cfg.channel_chat_enabled = checked
+        self.app_controller.engine.set_chat_enabled(checked)
+        self.app_controller.save_config()
+        self.refresh_channel_status()
+
+    def _tray_toggled(self, checked: bool):
+        if self._loading:
+            return
+        self.app_controller.config.minimize_to_tray = checked
+        self.app_controller.save_config()
+
+    def _apply_mic_passthrough(self):
+        """(Re)start mic passthrough based on current config, or stop it."""
+        cfg = self.app_controller.config
+        ac = self.app_controller.audio_controller
+        if cfg.mic_passthrough and cfg.mic_device:
+            ac.enable_mic_passthrough(cfg.mic_device, cfg.mic_passthrough_volume)
+        else:
+            ac.disable_mic_passthrough()
 
     def _create_virtual_mic(self):
         ok = self.app_controller.audio_controller.create_virtual_devices()
