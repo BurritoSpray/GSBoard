@@ -382,26 +382,10 @@ class WindowsAudioController(AudioController):
     # ------------------------------------------------------------------
 
     def list_output_devices(self) -> List[Tuple[str, str]]:
-        results = []
-        try:
-            for dev in sd.query_devices():
-                if dev.get("max_output_channels", 0) > 0:
-                    name = dev.get("name", "")
-                    results.append((name, name))
-        except Exception:
-            pass
-        return results
+        return _list_devices(output=True)
 
     def list_input_devices(self) -> List[Tuple[str, str]]:
-        results = []
-        try:
-            for dev in sd.query_devices():
-                if dev.get("max_input_channels", 0) > 0:
-                    name = dev.get("name", "")
-                    results.append((name, name))
-        except Exception:
-            pass
-        return results
+        return _list_devices(output=False)
 
     # ------------------------------------------------------------------
     # AudioController — playback
@@ -483,6 +467,33 @@ def _list_vbcable_sinks() -> List[str]:
     except Exception:
         pass
     return seen
+
+
+def _list_devices(*, output: bool) -> List[Tuple[str, str]]:
+    """Enumerate playback or capture devices on the preferred host API.
+
+    Filtering to one host API avoids showing the same physical device
+    once per Windows audio API (MME/DirectSound/WASAPI). Duplicate
+    names across different drivers (rare) are also deduped.
+    """
+    channel_key = "max_output_channels" if output else "max_input_channels"
+    api_idx = _preferred_hostapi_index()
+    seen = set()
+    results: List[Tuple[str, str]] = []
+    try:
+        for dev in sd.query_devices():
+            if dev.get(channel_key, 0) <= 0:
+                continue
+            if api_idx is not None and dev.get("hostapi") != api_idx:
+                continue
+            name = dev.get("name", "")
+            if not name or name in seen:
+                continue
+            seen.add(name)
+            results.append((name, name))
+    except Exception:
+        pass
+    return results
 
 
 def _resolve_device_index(name: Optional[str], *, output: bool) -> Optional[int]:
