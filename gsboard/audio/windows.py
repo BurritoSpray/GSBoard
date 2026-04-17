@@ -224,15 +224,18 @@ class WindowsAudioController(AudioController):
         available = _list_vbcable_sinks()
         # Prefer a caller-supplied sink when it's still present on the
         # system; otherwise fall back to the first detected cable (game)
-        # and the next one (chat), if any.
+        # and the next one (chat), if any. Enforce that the two channels
+        # never point at the same cable — if the saved config or fallback
+        # logic would collide, drop chat to the next unused cable (or None).
         self._game_sink = (
             game_sink if game_sink in available
             else (available[0] if available else None)
         )
-        self._chat_sink = (
-            chat_sink if chat_sink in available
-            else (available[1] if len(available) > 1 else None)
-        )
+        remaining = [c for c in available if c != self._game_sink]
+        if chat_sink and chat_sink in remaining:
+            self._chat_sink = chat_sink
+        else:
+            self._chat_sink = remaining[0] if remaining else None
         self._passthrough: Optional[_MicPassthrough] = None
 
     # ------------------------------------------------------------------
@@ -278,30 +281,32 @@ class WindowsAudioController(AudioController):
             raise ValueError(f"Unknown channel: {channel!r}")
 
     def get_channel_info(self, channel: str) -> ChannelInfo:
-        if channel == "game":
-            return self._channel_info_or_missing(
-                "Game",
-                self.is_game_sink_active(),
-                self.is_game_source_active(),
-                self.game_source_id,
-                missing_html=(
-                    f"Game: install <a href='{VBCABLE_INSTALL_URL}'>VB-Cable</a>"
-                ),
+        if channel not in ("game", "chat"):
+            raise ValueError(f"Unknown channel: {channel!r}")
+
+        label = "Game" if channel == "game" else "Chat"
+        sink_active = (self.is_game_sink_active() if channel == "game"
+                       else self.is_chat_sink_active())
+        src_active = (self.is_game_source_active() if channel == "game"
+                      else self.is_chat_source_active())
+        source_id = self.game_source_id if channel == "game" else self.chat_source_id
+
+        cable_count = len(_list_vbcable_sinks())
+        if cable_count == 0:
+            missing_html = (
+                f"{label}: install "
+                f"<a href='{VBCABLE_INSTALL_URL}'>VB-Cable</a>"
             )
-        if channel == "chat":
-            return self._channel_info_or_missing(
-                "Chat",
-                self.is_chat_sink_active(),
-                self.is_chat_source_active(),
-                self.chat_source_id,
-                missing_html=(
-                    "Chat: requires a second virtual cable "
-                    f"(<a href='{VBCABLE_B_PURCHASE_URL}'>VB-Cable B, paid</a>) "
-                    "— not needed for most setups"
-                ),
-                missing_short_state="n/a",
+        else:
+            missing_html = (
+                f"{label}: assign a device above, or add a second cable "
+                f"(<a href='{VBCABLE_B_PURCHASE_URL}'>VB-Cable A+B, paid</a>)"
             )
-        raise ValueError(f"Unknown channel: {channel!r}")
+        return self._channel_info_or_missing(
+            label, sink_active, src_active, source_id,
+            missing_html=missing_html,
+            missing_short_state="n/a",
+        )
 
     @staticmethod
     def _channel_info_or_missing(

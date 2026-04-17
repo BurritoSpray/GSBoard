@@ -353,7 +353,6 @@ class SettingsPanel(QWidget):
             combo.addItem("(none)", "")
             for device_id, display in candidates:
                 combo.addItem(display, device_id)
-            # Select the backend's current device, if still present.
             target_idx = 0
             for i in range(combo.count()):
                 if combo.itemData(i) == (current or ""):
@@ -361,6 +360,7 @@ class SettingsPanel(QWidget):
                     break
             combo.setCurrentIndex(target_idx)
             combo.blockSignals(False)
+        self._update_channel_rows_enabled()
 
     def _channel_device_changed(self, channel: str):
         combo = (self._game_device_combo if channel == "game"
@@ -369,19 +369,50 @@ class SettingsPanel(QWidget):
             return
         device_id = combo.currentData() or None
         ac = self.app_controller.audio_controller
-        ac.set_channel_device(channel, device_id)
-
         cfg = self.app_controller.config
+
+        # If the user picked a cable already claimed by the other channel,
+        # steal it: clear the other channel so the same sink isn't bound
+        # to both virtual mics.
+        if device_id:
+            other = "chat" if channel == "game" else "game"
+            other_current = (cfg.channel_chat_device if other == "chat"
+                             else cfg.channel_game_device)
+            if other_current and other_current == device_id:
+                ac.set_channel_device(other, None)
+                if other == "chat":
+                    cfg.channel_chat_device = ""
+                else:
+                    cfg.channel_game_device = ""
+
+        ac.set_channel_device(channel, device_id)
         if channel == "game":
             cfg.channel_game_device = device_id or ""
         else:
             cfg.channel_chat_device = device_id or ""
         self.app_controller.save_config()
         self.app_controller.apply_audio_settings()
+        # Repopulate both dropdowns so a stolen cable's "(none)" selection
+        # is reflected in the other combo.
+        self._refresh_channel_devices()
         self._update_vm_status()
         self.refresh_channel_status()
         if self.app_controller.main_window is not None:
             self.app_controller.main_window._update_status()
+
+    def _update_channel_rows_enabled(self):
+        """Disable each channel's enable checkbox and shortcut button when
+        no device is assigned — routing has nowhere to go, so the toggle
+        and hotkey would be meaningless."""
+        if self._game_device_combo is None or self._chat_device_combo is None:
+            return
+        for combo, check, btn in (
+            (self._game_device_combo, self._game_check, self._game_shortcut_btn),
+            (self._chat_device_combo, self._chat_check, self._chat_shortcut_btn),
+        ):
+            has_device = bool(combo.currentData())
+            check.setEnabled(has_device)
+            btn.setEnabled(has_device)
 
     def _settings_shortcut_buttons(self):
         """Return (label, button) pairs for all shortcut buttons in the Settings panel."""

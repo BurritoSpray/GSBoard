@@ -119,6 +119,11 @@ class AppController:
 
     def start(self):
         self.audio_controller.create_virtual_devices()
+        # Sync any channel-device dedup done by the controller back into
+        # config so the persisted state matches what the UI will display.
+        if self.audio_controller.capabilities.supports_user_device_selection:
+            self.config.channel_game_device = self.audio_controller.game_sink_id or ""
+            self.config.channel_chat_device = self.audio_controller.chat_sink_id or ""
         self.engine.set_master_volume(self.config.master_volume)
         self.engine.set_monitor_device(self.config.output_device)
         self.engine.set_game_enabled(self.config.channel_game_enabled)
