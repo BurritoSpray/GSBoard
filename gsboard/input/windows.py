@@ -59,12 +59,16 @@ def _build_vk_map() -> Dict[str, int]:
         "print_screen": 0x2C,
         "insert":       0x2D,
         "delete":       0x2E,
-        # Numpad
+        # Numpad — token names match what shortcut_editor.py emits.
         "num0": 0x60, "num1": 0x61, "num2": 0x62, "num3": 0x63,
         "num4": 0x64, "num5": 0x65, "num6": 0x66, "num7": 0x67,
         "num8": 0x68, "num9": 0x69,
-        "multiply": 0x6A, "add": 0x6B, "subtract": 0x6D,
-        "decimal": 0x6E, "divide": 0x6F,
+        "num_multiply": 0x6A, "num_add": 0x6B, "num_subtract": 0x6D,
+        "num_decimal": 0x6E, "num_divide": 0x6F,
+        # Win32 has no dedicated VK for Numpad Enter — it shares VK_RETURN
+        # and is distinguished only by the extended scancode flag, which
+        # RegisterHotKey ignores. Map to VK_RETURN for parity.
+        "num_enter": 0x0D,
         # Misc
         "scroll_lock":  0x91,
         "pause":        0x13,
