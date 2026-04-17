@@ -1,12 +1,25 @@
-from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QTableWidget, QTableWidgetItem,
-    QPushButton, QLabel, QDialog, QFormLayout, QLineEdit, QSpinBox,
-    QDialogButtonBox, QHeaderView, QAbstractItemView, QCheckBox, QMessageBox
-)
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QKeySequence, QKeyEvent
+from PyQt6.QtGui import QKeyEvent, QKeySequence
+from PyQt6.QtWidgets import (
+    QAbstractItemView,
+    QCheckBox,
+    QDialog,
+    QDialogButtonBox,
+    QFormLayout,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QSpinBox,
+    QTableWidget,
+    QTableWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
 
-from gsboard.models.sound import Sound, MacroConfig
+from gsboard.models.sound import MacroConfig, Sound
 
 # Maps Qt Key values (when KeypadModifier is set) to pynput-style numpad names.
 _NUMPAD_KEY_NAMES = {
@@ -215,9 +228,7 @@ class ShortcutEditor(QWidget):
         gm_label.setStyleSheet("font-weight: bold; font-size: 13px;")
         layout.addWidget(gm_label)
 
-        gm_info = QLabel(
-            "Applied to all sounds that don't have their own macro configured."
-        )
+        gm_info = QLabel("Applied to all sounds that don't have their own macro configured.")
         gm_info.setStyleSheet("color: #888; font-size: 11px;")
         layout.addWidget(gm_info)
 
@@ -265,12 +276,22 @@ class ShortcutEditor(QWidget):
         layout.addWidget(info)
 
         self._table = QTableWidget(0, 5)
-        self._table.setHorizontalHeaderLabels(["Sound", "Shortcut", "Pass Through", "Macro Key", "Macro Delays"])
+        self._table.setHorizontalHeaderLabels(
+            ["Sound", "Shortcut", "Pass Through", "Macro Key", "Macro Delays"]
+        )
         self._table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        self._table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
-        self._table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
-        self._table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
-        self._table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
+        self._table.horizontalHeader().setSectionResizeMode(
+            1, QHeaderView.ResizeMode.ResizeToContents
+        )
+        self._table.horizontalHeader().setSectionResizeMode(
+            2, QHeaderView.ResizeMode.ResizeToContents
+        )
+        self._table.horizontalHeader().setSectionResizeMode(
+            3, QHeaderView.ResizeMode.ResizeToContents
+        )
+        self._table.horizontalHeader().setSectionResizeMode(
+            4, QHeaderView.ResizeMode.ResizeToContents
+        )
         self._table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self._table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         layout.addWidget(self._table)
@@ -306,7 +327,9 @@ class ShortcutEditor(QWidget):
 
             chk = QCheckBox()
             chk.setChecked(sound.shortcut_pass_through)
-            chk.toggled.connect(lambda checked, snd=sound: self._on_pass_through_toggled(snd, checked))
+            chk.toggled.connect(
+                lambda checked, snd=sound: self._on_pass_through_toggled(snd, checked)
+            )
             chk_container = QWidget()
             chk_layout = QHBoxLayout(chk_container)
             chk_layout.addWidget(chk)
@@ -326,7 +349,8 @@ class ShortcutEditor(QWidget):
             conflict = self.app_controller.find_shortcut_conflict(shortcut, exclude=sound.shortcut)
             if conflict:
                 result = QMessageBox.question(
-                    self, "Shortcut Conflict",
+                    self,
+                    "Shortcut Conflict",
                     f"<b>{shortcut}</b> is already used by <b>{conflict}</b>.<br><br>"
                     f"Overwrite and assign to <b>{sound.name}</b>?",
                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,

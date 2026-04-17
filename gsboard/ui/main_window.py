@@ -1,14 +1,11 @@
-from PyQt6.QtWidgets import (
-    QMainWindow, QTabWidget, QStatusBar, QLabel, QWidget, QVBoxLayout
-)
-from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QIcon
+from PyQt6.QtCore import QTimer
+from PyQt6.QtWidgets import QLabel, QMainWindow, QStatusBar, QTabWidget
 
-from gsboard.ui.sound_grid import SoundGrid
+from gsboard.ui.about_tab import AboutTab
+from gsboard.ui.games_tab import GamesTab
 from gsboard.ui.settings import SettingsPanel
 from gsboard.ui.shortcut_editor import ShortcutEditor
-from gsboard.ui.games_tab import GamesTab
-from gsboard.ui.about_tab import AboutTab
+from gsboard.ui.sound_grid import SoundGrid
 
 
 class MainWindow(QMainWindow):
@@ -55,11 +52,13 @@ class MainWindow(QMainWindow):
 
         game_state = (
             ("ON" if engine.is_game_enabled() else "muted")
-            if game_ok else game_info.short_state.upper()
+            if game_ok
+            else game_info.short_state.upper()
         )
         chat_state = (
             ("ON" if engine.is_chat_enabled() else "muted")
-            if chat_ok else chat_info.short_state.upper()
+            if chat_ok
+            else chat_info.short_state.upper()
         )
         loopback_state = "ON" if engine.is_monitor_enabled() else "OFF"
 
@@ -108,4 +107,5 @@ class MainWindow(QMainWindow):
             event.accept()
             self.app_controller.on_quit()
             from PyQt6.QtWidgets import QApplication
+
             QApplication.instance().quit()

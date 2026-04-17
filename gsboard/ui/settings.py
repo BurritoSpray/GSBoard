@@ -1,12 +1,25 @@
 from typing import Optional
 
+from PyQt6.QtCore import QEvent, QObject, Qt, QTimer
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QFormLayout, QLabel,
-    QComboBox, QSlider, QPushButton, QCheckBox, QLineEdit,
-    QFileDialog, QGroupBox, QSpinBox, QScrollArea, QMessageBox
+    QCheckBox,
+    QComboBox,
+    QFileDialog,
+    QFormLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QScrollArea,
+    QSlider,
+    QSpinBox,
+    QVBoxLayout,
+    QWidget,
 )
+
 from gsboard.ui.shortcut_editor import ShortcutCaptureButton
-from PyQt6.QtCore import Qt, QObject, QEvent, QTimer
 
 
 class _NoWheelFilter(QObject):
@@ -98,9 +111,7 @@ class SettingsPanel(QWidget):
         self._mic_combo.currentIndexChanged.connect(self._mic_changed)
         audio_form.addRow("Your Real Microphone:", self._mic_combo)
 
-        self._passthrough_check = QCheckBox(
-            "Mix my voice into both virtual mics (game + chat)"
-        )
+        self._passthrough_check = QCheckBox("Mix my voice into both virtual mics (game + chat)")
         self._passthrough_check.toggled.connect(self._toggle_passthrough)
         audio_form.addRow("", self._passthrough_check)
 
@@ -363,8 +374,7 @@ class SettingsPanel(QWidget):
         self._update_channel_rows_enabled()
 
     def _channel_device_changed(self, channel: str):
-        combo = (self._game_device_combo if channel == "game"
-                 else self._chat_device_combo)
+        combo = self._game_device_combo if channel == "game" else self._chat_device_combo
         if combo is None:
             return
         device_id = combo.currentData() or None
@@ -376,8 +386,7 @@ class SettingsPanel(QWidget):
         # to both virtual mics.
         if device_id:
             other = "chat" if channel == "game" else "game"
-            other_current = (cfg.channel_chat_device if other == "chat"
-                             else cfg.channel_game_device)
+            other_current = cfg.channel_chat_device if other == "chat" else cfg.channel_game_device
             if other_current and other_current == device_id:
                 ac.set_channel_device(other, None)
                 if other == "chat":
@@ -417,10 +426,10 @@ class SettingsPanel(QWidget):
     def _settings_shortcut_buttons(self):
         """Return (label, button) pairs for all shortcut buttons in the Settings panel."""
         return [
-            ("Toggle Game Mic",  self._game_shortcut_btn),
-            ("Toggle Chat Mic",  self._chat_shortcut_btn),
-            ("Stop All Sounds",  self._stop_all_shortcut_btn),
-            ("Toggle Loopback",  self._loopback_shortcut_btn),
+            ("Toggle Game Mic", self._game_shortcut_btn),
+            ("Toggle Chat Mic", self._chat_shortcut_btn),
+            ("Stop All Sounds", self._stop_all_shortcut_btn),
+            ("Toggle Loopback", self._loopback_shortcut_btn),
         ]
 
     def _saved_shortcut_for(self, btn) -> str:
@@ -450,7 +459,8 @@ class SettingsPanel(QWidget):
                     break
         if conflict:
             result = QMessageBox.question(
-                self, "Shortcut Conflict",
+                self,
+                "Shortcut Conflict",
                 f"<b>{new_sc}</b> is already used by <b>{conflict}</b>.<br><br>"
                 f"Overwrite and assign to <b>{label}</b>?",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
@@ -516,9 +526,7 @@ class SettingsPanel(QWidget):
         self.app_controller.config.mic_passthrough_volume = value / 100
         # Live-update a running passthrough so the slider is responsive
         # without tearing down the stream on every tick.
-        self.app_controller.audio_controller.set_mic_passthrough_volume(
-            value / 100
-        )
+        self.app_controller.audio_controller.set_mic_passthrough_volume(value / 100)
         self._save_timer.start()
 
     def _master_vol_changed(self, value: int):
@@ -574,15 +582,13 @@ class SettingsPanel(QWidget):
         self._update_vm_status()
         if not ok:
             from PyQt6.QtCore import Qt
+
             box = QMessageBox(self)
             box.setIcon(QMessageBox.Icon.Warning)
             box.setWindowTitle("Virtual Mic")
             box.setTextFormat(Qt.TextFormat.RichText)
             box.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
-            box.setText(
-                "Failed to create virtual audio devices.<br>"
-                "Is PipeWire running?"
-            )
+            box.setText("Failed to create virtual audio devices.<br>Is PipeWire running?")
             box.exec()
         else:
             self.app_controller.apply_audio_settings()
@@ -603,17 +609,11 @@ class SettingsPanel(QWidget):
                     f"{info.device_name} (active)</span>"
                 )
             elif info.short_state == "partial":
-                lines.append(
-                    f"<span style='color:#ff9800'>⚠ {info.unavailable_html}</span>"
-                )
+                lines.append(f"<span style='color:#ff9800'>⚠ {info.unavailable_html}</span>")
             elif info.short_state == "n/a":
-                lines.append(
-                    f"<span style='color:#888'>— {info.unavailable_html}</span>"
-                )
+                lines.append(f"<span style='color:#888'>— {info.unavailable_html}</span>")
             else:
-                lines.append(
-                    f"<span style='color:#f44336'>✘ {info.unavailable_html}</span>"
-                )
+                lines.append(f"<span style='color:#f44336'>✘ {info.unavailable_html}</span>")
 
         self._vm_status_label.setText("<br>".join(lines))
 
@@ -629,13 +629,19 @@ class SettingsPanel(QWidget):
         game_on = engine.is_game_enabled()
         self._game_status.setText(
             f"Mic: <b>{ac.game_source_id}</b> — "
-            + ("<span style='color:#4caf50'>sending sounds</span>" if game_on
-               else "<span style='color:#888'>muted</span>")
+            + (
+                "<span style='color:#4caf50'>sending sounds</span>"
+                if game_on
+                else "<span style='color:#888'>muted</span>"
+            )
         )
 
         chat_on = engine.is_chat_enabled()
         self._chat_status.setText(
             f"Mic: <b>{ac.chat_source_id}</b> — "
-            + ("<span style='color:#4caf50'>sending sounds</span>" if chat_on
-               else "<span style='color:#888'>muted</span>")
+            + (
+                "<span style='color:#4caf50'>sending sounds</span>"
+                if chat_on
+                else "<span style='color:#888'>muted</span>"
+            )
         )

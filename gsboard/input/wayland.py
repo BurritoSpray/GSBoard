@@ -30,6 +30,7 @@ _SESSION_IFACE = "org.freedesktop.portal.Session"
 # Key-code conversion helpers (pynput format → Qt key int)
 # ---------------------------------------------------------------------------
 
+
 def _build_key_map() -> Dict[str, int]:
     from PyQt6.QtCore import Qt
 
@@ -56,43 +57,52 @@ def _build_key_map() -> Dict[str, int]:
     # Common special keys — include both Qt QKeySequence names and legacy aliases
     specials = {
         # Navigation (Qt produces these short names)
-        "pgdown": Qt.Key.Key_PageDown, "page_down": Qt.Key.Key_PageDown,
-        "pgup":   Qt.Key.Key_PageUp,   "page_up":   Qt.Key.Key_PageUp,
-        "del":    Qt.Key.Key_Delete,   "delete":    Qt.Key.Key_Delete,
-        "ins":    Qt.Key.Key_Insert,   "insert":    Qt.Key.Key_Insert,
-        "home":   Qt.Key.Key_Home,
-        "end":    Qt.Key.Key_End,
-        "up":     Qt.Key.Key_Up,
-        "down":   Qt.Key.Key_Down,
-        "left":   Qt.Key.Key_Left,
-        "right":  Qt.Key.Key_Right,
+        "pgdown": Qt.Key.Key_PageDown,
+        "page_down": Qt.Key.Key_PageDown,
+        "pgup": Qt.Key.Key_PageUp,
+        "page_up": Qt.Key.Key_PageUp,
+        "del": Qt.Key.Key_Delete,
+        "delete": Qt.Key.Key_Delete,
+        "ins": Qt.Key.Key_Insert,
+        "insert": Qt.Key.Key_Insert,
+        "home": Qt.Key.Key_Home,
+        "end": Qt.Key.Key_End,
+        "up": Qt.Key.Key_Up,
+        "down": Qt.Key.Key_Down,
+        "left": Qt.Key.Key_Left,
+        "right": Qt.Key.Key_Right,
         # Editing
-        "space":     Qt.Key.Key_Space,
-        "tab":       Qt.Key.Key_Tab,
-        "return":    Qt.Key.Key_Return,
-        "enter":     Qt.Key.Key_Enter,
+        "space": Qt.Key.Key_Space,
+        "tab": Qt.Key.Key_Tab,
+        "return": Qt.Key.Key_Return,
+        "enter": Qt.Key.Key_Enter,
         "backspace": Qt.Key.Key_Backspace,
         # Modifiers / locks
-        "esc":         Qt.Key.Key_Escape,   "escape":      Qt.Key.Key_Escape,
-        "capslock":    Qt.Key.Key_CapsLock, "caps_lock":   Qt.Key.Key_CapsLock,
-        "numlock":     Qt.Key.Key_NumLock,  "num_lock":    Qt.Key.Key_NumLock,
-        "scrolllock":  Qt.Key.Key_ScrollLock, "scroll_lock": Qt.Key.Key_ScrollLock,
-        "pause":       Qt.Key.Key_Pause,
-        "print":       Qt.Key.Key_Print,    "print_screen": Qt.Key.Key_Print,
+        "esc": Qt.Key.Key_Escape,
+        "escape": Qt.Key.Key_Escape,
+        "capslock": Qt.Key.Key_CapsLock,
+        "caps_lock": Qt.Key.Key_CapsLock,
+        "numlock": Qt.Key.Key_NumLock,
+        "num_lock": Qt.Key.Key_NumLock,
+        "scrolllock": Qt.Key.Key_ScrollLock,
+        "scroll_lock": Qt.Key.Key_ScrollLock,
+        "pause": Qt.Key.Key_Pause,
+        "print": Qt.Key.Key_Print,
+        "print_screen": Qt.Key.Key_Print,
         # Punctuation / symbols that QKeySequence.toString() produces
-        "-":  Qt.Key.Key_Minus,
-        "+":  Qt.Key.Key_Plus,
-        "*":  Qt.Key.Key_Asterisk,
-        "/":  Qt.Key.Key_Slash,
-        ".":  Qt.Key.Key_Period,
-        ",":  Qt.Key.Key_Comma,
-        "=":  Qt.Key.Key_Equal,
-        ";":  Qt.Key.Key_Semicolon,
-        "'":  Qt.Key.Key_Apostrophe,
-        "[":  Qt.Key.Key_BracketLeft,
-        "]":  Qt.Key.Key_BracketRight,
+        "-": Qt.Key.Key_Minus,
+        "+": Qt.Key.Key_Plus,
+        "*": Qt.Key.Key_Asterisk,
+        "/": Qt.Key.Key_Slash,
+        ".": Qt.Key.Key_Period,
+        ",": Qt.Key.Key_Comma,
+        "=": Qt.Key.Key_Equal,
+        ";": Qt.Key.Key_Semicolon,
+        "'": Qt.Key.Key_Apostrophe,
+        "[": Qt.Key.Key_BracketLeft,
+        "]": Qt.Key.Key_BracketRight,
         "\\": Qt.Key.Key_Backslash,
-        "`":  Qt.Key.Key_QuoteLeft,
+        "`": Qt.Key.Key_QuoteLeft,
     }
     for name, qt_key in specials.items():
         key_map[name] = qt_key.value
@@ -179,6 +189,7 @@ def _shortcut_to_portal_trigger(shortcut: str) -> str:
 # KGlobalAccel backend
 # ---------------------------------------------------------------------------
 
+
 class _KGlobalAccelManager(QObject):
     """
     Registers global shortcuts via the KDE KGlobalAccel DBus service.
@@ -190,13 +201,12 @@ class _KGlobalAccelManager(QObject):
         from PyQt6.QtDBus import QDBusConnection
 
         self._shortcuts_input = dict(shortcuts)
-        self._callbacks: Dict[str, Callable] = {}   # action_unique_name → callback
+        self._callbacks: Dict[str, Callable] = {}  # action_unique_name → callback
         self._bus = QDBusConnection.sessionBus()
-        self._registered: list[str] = []            # action unique names we registered
+        self._registered: list[str] = []  # action unique names we registered
         self._component_path: Optional[str] = None
 
     def start(self) -> bool:
-        from PyQt6.QtDBus import QDBusConnection
 
         if not self._bus.isConnected():
             return False
@@ -281,8 +291,10 @@ class _KGlobalAccelManager(QObject):
             return False
 
         self._kga_iface = kga_iface  # keep reference for cleanup
-        print(f"[KGlobalAccel] Registered {len(self._registered)} shortcut(s) "
-              f"at {self._component_path}")
+        print(
+            f"[KGlobalAccel] Registered {len(self._registered)} shortcut(s) "
+            f"at {self._component_path}"
+        )
         return True
 
     @pyqtSlot(str, str, "qlonglong")
@@ -309,6 +321,7 @@ class _KGlobalAccelManager(QObject):
 
     def _cleanup_registrations(self, kga_iface):
         import dbus as _dbus
+
         for action_name in self._registered:
             try:
                 kga_iface.unregister(_COMPONENT, action_name)
@@ -353,6 +366,7 @@ class KGlobalAccelBackend(HotkeyBackend):
 # xdg-desktop-portal GlobalShortcuts backend
 # ---------------------------------------------------------------------------
 
+
 class _PortalManager(QObject):
     """
     Global shortcuts via xdg-desktop-portal GlobalShortcuts protocol.
@@ -367,9 +381,7 @@ class _PortalManager(QObject):
         self._callbacks: Dict[str, Callable] = {}
         self._session_handle: Optional[str] = None
         self._bus = QDBusConnection.sessionBus()
-        self._sender_name = (
-            self._bus.baseService().lstrip(":").replace(".", "_")
-        )
+        self._sender_name = self._bus.baseService().lstrip(":").replace(".", "_")
         self._token_seq = 0
 
     def _next_token(self) -> str:
@@ -382,23 +394,21 @@ class _PortalManager(QObject):
         if not self._bus.isConnected():
             return False
 
-        iface = QDBusInterface(
-            _PORTAL_SERVICE, _PORTAL_PATH, _PORTAL_IFACE, self._bus
-        )
+        iface = QDBusInterface(_PORTAL_SERVICE, _PORTAL_PATH, _PORTAL_IFACE, self._bus)
         if not iface.isValid():
             print("[Portal] GlobalShortcuts portal not available")
             return False
 
         handle_token = self._next_token()
         session_token = self._next_token()
-        request_path = (
-            f"/org/freedesktop/portal/desktop/request/"
-            f"{self._sender_name}/{handle_token}"
-        )
+        request_path = f"/org/freedesktop/portal/desktop/request/{self._sender_name}/{handle_token}"
 
         ok = self._bus.connect(
-            _PORTAL_SERVICE, request_path, _REQUEST_IFACE,
-            "Response", self._on_create_session_response,
+            _PORTAL_SERVICE,
+            request_path,
+            _REQUEST_IFACE,
+            "Response",
+            self._on_create_session_response,
         )
         if not ok:
             print("[Portal] Could not connect to Request signal")
@@ -431,33 +441,36 @@ class _PortalManager(QObject):
         print(f"[Portal] Session created: {self._session_handle}")
 
         self._bus.connect(
-            _PORTAL_SERVICE, self._session_handle, _PORTAL_IFACE,
-            "Activated", self._on_activated,
+            _PORTAL_SERVICE,
+            self._session_handle,
+            _PORTAL_IFACE,
+            "Activated",
+            self._on_activated,
         )
 
         shortcuts_list = []
         for i, (shortcut_str, cb) in enumerate(self._shortcuts_input.items()):
             portal_id = f"gsboard_{i}"
             self._callbacks[portal_id] = cb
-            shortcuts_list.append({
-                "id": portal_id,
-                "description": shortcut_str,
-                "preferred_trigger": _shortcut_to_portal_trigger(shortcut_str),
-            })
+            shortcuts_list.append(
+                {
+                    "id": portal_id,
+                    "description": shortcut_str,
+                    "preferred_trigger": _shortcut_to_portal_trigger(shortcut_str),
+                }
+            )
 
         handle_token = self._next_token()
-        request_path = (
-            f"/org/freedesktop/portal/desktop/request/"
-            f"{self._sender_name}/{handle_token}"
-        )
+        request_path = f"/org/freedesktop/portal/desktop/request/{self._sender_name}/{handle_token}"
         self._bus.connect(
-            _PORTAL_SERVICE, request_path, _REQUEST_IFACE,
-            "Response", self._on_bind_response,
+            _PORTAL_SERVICE,
+            request_path,
+            _REQUEST_IFACE,
+            "Response",
+            self._on_bind_response,
         )
 
-        iface = QDBusInterface(
-            _PORTAL_SERVICE, _PORTAL_PATH, _PORTAL_IFACE, self._bus
-        )
+        iface = QDBusInterface(_PORTAL_SERVICE, _PORTAL_PATH, _PORTAL_IFACE, self._bus)
         reply = iface.call(
             "BindShortcuts",
             self._session_handle,
@@ -476,8 +489,7 @@ class _PortalManager(QObject):
         print(f"[Portal] Shortcuts bound: {list(self._callbacks.keys())}")
 
     @pyqtSlot(str, str, "qulonglong", "QVariantMap")
-    def _on_activated(self, session_handle: str, shortcut_id: str,
-                      timestamp: int, options: dict):
+    def _on_activated(self, session_handle: str, shortcut_id: str, timestamp: int, options: dict):
         cb = self._callbacks.get(shortcut_id)
         if cb:
             threading.Thread(target=cb, daemon=True).start()
@@ -485,8 +497,12 @@ class _PortalManager(QObject):
     def stop(self):
         if self._session_handle:
             from PyQt6.QtDBus import QDBusInterface
+
             iface = QDBusInterface(
-                _PORTAL_SERVICE, self._session_handle, _SESSION_IFACE, self._bus,
+                _PORTAL_SERVICE,
+                self._session_handle,
+                _SESSION_IFACE,
+                self._bus,
             )
             iface.call("Close")
             self._session_handle = None
@@ -526,6 +542,7 @@ class PortalBackend(HotkeyBackend):
 # ---------------------------------------------------------------------------
 # Composite Wayland backend: KGlobalAccel → portal
 # ---------------------------------------------------------------------------
+
 
 class WaylandBackend(HotkeyBackend):
     """

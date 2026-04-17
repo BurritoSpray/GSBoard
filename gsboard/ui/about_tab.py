@@ -1,11 +1,12 @@
 import os
 
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QPixmap
+from PyQt6.QtWidgets import QLabel, QVBoxLayout, QWidget
 
 from gsboard import __version__ as VERSION
 from gsboard.resources import resource_path
+
 REPO_URL = "https://github.com/BurritoSpray/GSBoard"
 
 
@@ -23,7 +24,8 @@ class AboutTab(QWidget):
         if os.path.isfile(icon_path):
             logo_label = QLabel()
             pixmap = QPixmap(icon_path).scaled(
-                128, 128,
+                128,
+                128,
                 Qt.AspectRatioMode.KeepAspectRatio,
                 Qt.TransformationMode.SmoothTransformation,
             )

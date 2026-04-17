@@ -1,10 +1,23 @@
-from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QTableWidget, QTableWidgetItem,
-    QPushButton, QLabel, QDialog, QFormLayout, QLineEdit, QSpinBox,
-    QDialogButtonBox, QHeaderView, QAbstractItemView, QCheckBox, QComboBox,
-    QMessageBox,
-)
 from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import (
+    QAbstractItemView,
+    QCheckBox,
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QFormLayout,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QSpinBox,
+    QTableWidget,
+    QTableWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
 
 from gsboard.models.game_profile import GameProfile
 from gsboard.models.sound import MacroConfig
@@ -129,11 +142,17 @@ class GamesTab(QWidget):
         # -- Game profiles table --
         self._table = QTableWidget(0, 5)
         self._table.setHorizontalHeaderLabels(["Enabled", "Name", "Process", "Macro Key", "Delays"])
-        self._table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        self._table.horizontalHeader().setSectionResizeMode(
+            0, QHeaderView.ResizeMode.ResizeToContents
+        )
         self._table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         self._table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
-        self._table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
-        self._table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
+        self._table.horizontalHeader().setSectionResizeMode(
+            3, QHeaderView.ResizeMode.ResizeToContents
+        )
+        self._table.horizontalHeader().setSectionResizeMode(
+            4, QHeaderView.ResizeMode.ResizeToContents
+        )
         self._table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self._table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         layout.addWidget(self._table)
@@ -215,7 +234,7 @@ class GamesTab(QWidget):
             self._status_label.setStyleSheet("color: #888; font-size: 12px; padding: 4px;")
             return
 
-        detector = getattr(self.app_controller, 'game_detector', None)
+        detector = getattr(self.app_controller, "game_detector", None)
         if detector and detector.active_profile:
             p = detector.active_profile
             self._status_label.setText(
@@ -287,7 +306,8 @@ class GamesTab(QWidget):
         if row < 0 or row >= len(profiles):
             return
         result = QMessageBox.question(
-            self, "Remove Profile",
+            self,
+            "Remove Profile",
             f"Remove profile '{profiles[row].name}'?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )

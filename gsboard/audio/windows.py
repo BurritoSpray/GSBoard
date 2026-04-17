@@ -14,7 +14,7 @@ volume) to each active VB-Cable sink.
 import contextlib
 import io
 import threading
-from typing import List, Tuple, Optional
+from typing import List, Optional, Tuple
 
 import numpy as np
 import sounddevice as sd
@@ -23,19 +23,22 @@ import soundfile as sf
 from gsboard.audio.backend import AudioController, PlayHandle
 from gsboard.audio.capabilities import AudioCapabilities, ChannelInfo
 
-
 # URLs users are pointed at when parts of the VB-Cable suite are missing.
 VBCABLE_INSTALL_URL = "https://vb-audio.com/Cable/"
 VBCABLE_B_PURCHASE_URL = (
-    "https://shop.vb-audio.com/en/win-apps/12-vb-cable-ab.html"
-    "#/30-donation_s-p1_i_m_a_fan"
+    "https://shop.vb-audio.com/en/win-apps/12-vb-cable-ab.html#/30-donation_s-p1_i_m_a_fan"
 )
 
 # Name fragments used to auto-detect VB-Cable devices.
 # The free VB-Cable installs "CABLE Input / CABLE Output".  The paid add-ons
 # install "CABLE-A / CABLE-B" or "CABLE-C / CABLE-D" pairs.
-_VBCABLE_HINT_PREFIXES = ("CABLE Input", "CABLE-A Input", "CABLE-B Input",
-                          "CABLE-C Input", "CABLE-D Input")
+_VBCABLE_HINT_PREFIXES = (
+    "CABLE Input",
+    "CABLE-A Input",
+    "CABLE-B Input",
+    "CABLE-C Input",
+    "CABLE-D Input",
+)
 
 
 def _source_for_sink(sink_name: str) -> str:
@@ -49,6 +52,7 @@ def _source_for_sink(sink_name: str) -> str:
 # PlayHandle implementation for sounddevice output streams
 # ------------------------------------------------------------------
 
+
 class SounddeviceHandle(PlayHandle):
     """Handle for audio playing in a background thread via sounddevice."""
 
@@ -56,8 +60,7 @@ class SounddeviceHandle(PlayHandle):
         self._stop_event = threading.Event()
         self._done_event = threading.Event()
 
-    def _run(self, data: np.ndarray, samplerate: int,
-             device, channels: int):
+    def _run(self, data: np.ndarray, samplerate: int, device, channels: int):
         block_size = 1024
         try:
             with sd.OutputStream(
@@ -69,11 +72,9 @@ class SounddeviceHandle(PlayHandle):
             ) as stream:
                 idx = 0
                 while idx < len(data) and not self._stop_event.is_set():
-                    chunk = data[idx: idx + block_size]
+                    chunk = data[idx : idx + block_size]
                     if len(chunk) < block_size:
-                        pad = np.zeros(
-                            (block_size - len(chunk), channels), dtype="float32"
-                        )
+                        pad = np.zeros((block_size - len(chunk), channels), dtype="float32")
                         chunk = np.concatenate([chunk, pad])
                     stream.write(chunk)
                     idx += block_size
@@ -93,6 +94,7 @@ class SounddeviceHandle(PlayHandle):
 # ------------------------------------------------------------------
 # Mic passthrough — software mic → virtual cable routing
 # ------------------------------------------------------------------
+
 
 class _MicPassthrough:
     """Background thread copying real-mic audio into one or more sinks.
@@ -138,26 +140,27 @@ class _MicPassthrough:
         try:
             mic_channels = _input_channel_count(self._mic_device)
             mic_idx = _resolve_device_index(self._mic_device, output=False)
-            sink_ids = [
-                _resolve_device_index(sink, output=True) or sink
-                for sink in self._sinks
-            ]
+            sink_ids = [_resolve_device_index(sink, output=True) or sink for sink in self._sinks]
             with contextlib.ExitStack() as stack:
-                in_stream = stack.enter_context(sd.InputStream(
-                    device=mic_idx if mic_idx is not None else self._mic_device,
-                    channels=mic_channels,
-                    samplerate=self._SAMPLERATE,
-                    blocksize=self._BLOCKSIZE,
-                    dtype="float32",
-                ))
-                out_streams = [
-                    stack.enter_context(sd.OutputStream(
-                        device=sink_id,
-                        channels=self._SINK_CHANNELS,
+                in_stream = stack.enter_context(
+                    sd.InputStream(
+                        device=mic_idx if mic_idx is not None else self._mic_device,
+                        channels=mic_channels,
                         samplerate=self._SAMPLERATE,
                         blocksize=self._BLOCKSIZE,
                         dtype="float32",
-                    ))
+                    )
+                )
+                out_streams = [
+                    stack.enter_context(
+                        sd.OutputStream(
+                            device=sink_id,
+                            channels=self._SINK_CHANNELS,
+                            samplerate=self._SAMPLERATE,
+                            blocksize=self._BLOCKSIZE,
+                            dtype="float32",
+                        )
+                    )
                     for sink_id in sink_ids
                 ]
                 while not self._stop.is_set():
@@ -175,8 +178,7 @@ class _MicPassthrough:
             print(f"[WindowsAudio] mic passthrough stopped: {e}")
 
 
-def _spawn_sounddevice(wav_bytes: bytes,
-                       device) -> Optional[SounddeviceHandle]:
+def _spawn_sounddevice(wav_bytes: bytes, device) -> Optional[SounddeviceHandle]:
     try:
         buf = io.BytesIO(wav_bytes)
         data, samplerate = sf.read(buf, dtype="float32", always_2d=True)
@@ -207,6 +209,7 @@ def _spawn_sounddevice(wav_bytes: bytes,
 # Windows AudioController
 # ------------------------------------------------------------------
 
+
 class WindowsAudioController(AudioController):
     """
     Audio controller for Windows.
@@ -228,8 +231,7 @@ class WindowsAudioController(AudioController):
         # never point at the same cable — if the saved config or fallback
         # logic would collide, drop chat to the next unused cable (or None).
         self._game_sink = (
-            game_sink if game_sink in available
-            else (available[0] if available else None)
+            game_sink if game_sink in available else (available[0] if available else None)
         )
         remaining = [c for c in available if c != self._game_sink]
         if chat_sink and chat_sink in remaining:
@@ -285,25 +287,27 @@ class WindowsAudioController(AudioController):
             raise ValueError(f"Unknown channel: {channel!r}")
 
         label = "Game" if channel == "game" else "Chat"
-        sink_active = (self.is_game_sink_active() if channel == "game"
-                       else self.is_chat_sink_active())
-        src_active = (self.is_game_source_active() if channel == "game"
-                      else self.is_chat_source_active())
+        sink_active = (
+            self.is_game_sink_active() if channel == "game" else self.is_chat_sink_active()
+        )
+        src_active = (
+            self.is_game_source_active() if channel == "game" else self.is_chat_source_active()
+        )
         source_id = self.game_source_id if channel == "game" else self.chat_source_id
 
         cable_count = len(_list_vbcable_sinks())
         if cable_count == 0:
-            missing_html = (
-                f"{label}: install "
-                f"<a href='{VBCABLE_INSTALL_URL}'>VB-Cable</a>"
-            )
+            missing_html = f"{label}: install <a href='{VBCABLE_INSTALL_URL}'>VB-Cable</a>"
         else:
             missing_html = (
                 f"{label}: assign a device above, or add a second cable "
                 f"(<a href='{VBCABLE_B_PURCHASE_URL}'>VB-Cable A+B, paid</a>)"
             )
         return self._channel_info_or_missing(
-            label, sink_active, src_active, source_id,
+            label,
+            sink_active,
+            src_active,
+            source_id,
             missing_html=missing_html,
             missing_short_state="n/a",
         )
@@ -396,16 +400,14 @@ class WindowsAudioController(AudioController):
     # AudioController — playback
     # ------------------------------------------------------------------
 
-    def play_wav(self, wav_bytes: bytes,
-                 device_id: Optional[str]) -> Optional[PlayHandle]:
+    def play_wav(self, wav_bytes: bytes, device_id: Optional[str]) -> Optional[PlayHandle]:
         return _spawn_sounddevice(wav_bytes, device_id)
 
     # ------------------------------------------------------------------
     # AudioController — mic passthrough (software-mixed into VB-Cables)
     # ------------------------------------------------------------------
 
-    def enable_mic_passthrough(self, mic_device_id: str,
-                               volume: float) -> bool:
+    def enable_mic_passthrough(self, mic_device_id: str, volume: float) -> bool:
         if not mic_device_id:
             return False
         sinks = [s for s in (self._game_sink, self._chat_sink) if s]
@@ -429,6 +431,7 @@ class WindowsAudioController(AudioController):
 # ------------------------------------------------------------------
 # Helpers
 # ------------------------------------------------------------------
+
 
 def _preferred_hostapi_index() -> Optional[int]:
     """Pick a single Windows host API so each physical device appears once.
@@ -468,8 +471,7 @@ def _list_vbcable_sinks() -> List[str]:
             if api_idx is not None and dev.get("hostapi") != api_idx:
                 continue
             name = dev.get("name", "")
-            if not any(name.startswith(prefix)
-                       for prefix in _VBCABLE_HINT_PREFIXES):
+            if not any(name.startswith(prefix) for prefix in _VBCABLE_HINT_PREFIXES):
                 continue
             if name not in seen:
                 seen.append(name)

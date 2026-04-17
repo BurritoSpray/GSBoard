@@ -1,11 +1,9 @@
 import json
-import os
 from pathlib import Path
 from typing import List, Optional
 
-from gsboard.models.sound import Sound, MacroConfig
 from gsboard.models.game_profile import GameProfile
-
+from gsboard.models.sound import MacroConfig, Sound
 
 CONFIG_DIR = Path.home() / ".config" / "gsboard"
 CONFIG_FILE = CONFIG_DIR / "config.json"

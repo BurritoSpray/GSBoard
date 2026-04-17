@@ -1,16 +1,25 @@
 import shutil
 from pathlib import Path
 
+from PyQt6.QtCore import QByteArray, QMimeData, QPoint, QRect, QSize, Qt, QTimer, pyqtSignal
+from PyQt6.QtGui import QColor, QDrag, QDragEnterEvent, QDropEvent
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
-    QScrollArea, QLineEdit, QLabel, QFileDialog, QMenu,
-    QColorDialog, QMessageBox, QSizePolicy, QInputDialog, QFrame,
-    QLayout, QApplication
+    QApplication,
+    QColorDialog,
+    QFileDialog,
+    QFrame,
+    QHBoxLayout,
+    QInputDialog,
+    QLabel,
+    QLayout,
+    QLineEdit,
+    QMenu,
+    QMessageBox,
+    QPushButton,
+    QScrollArea,
+    QVBoxLayout,
+    QWidget,
 )
-from PyQt6.QtCore import (
-    Qt, QSize, pyqtSignal, QRect, QPoint, QTimer, QMimeData, QByteArray
-)
-from PyQt6.QtGui import QColor, QDragEnterEvent, QDropEvent, QDrag
 
 from gsboard.models.sound import Sound
 
@@ -23,6 +32,7 @@ _BTN_H = 90
 # ---------------------------------------------------------------------------
 # Flow layout
 # ---------------------------------------------------------------------------
+
 
 class FlowLayout(QLayout):
     """Left-to-right wrapping layout — items flow like words in a paragraph."""
@@ -91,10 +101,11 @@ class FlowLayout(QLayout):
 # Sound button
 # ---------------------------------------------------------------------------
 
+
 class SoundButton(QFrame):
-    play_requested = pyqtSignal(object)   # Sound
-    stop_requested = pyqtSignal(object)   # Sound
-    right_clicked = pyqtSignal(object)    # SoundButton
+    play_requested = pyqtSignal(object)  # Sound
+    stop_requested = pyqtSignal(object)  # Sound
+    right_clicked = pyqtSignal(object)  # SoundButton
 
     def __init__(self, sound: Sound, parent=None):
         super().__init__(parent)
@@ -111,9 +122,7 @@ class SoundButton(QFrame):
 
         self._name_lbl = QLabel()
         self._name_lbl.setWordWrap(True)
-        self._name_lbl.setAlignment(
-            Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter
-        )
+        self._name_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter)
         self._name_lbl.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         self._name_lbl.setStyleSheet(
             "color: white; font-size: 12px; font-weight: bold; background: transparent;"
@@ -207,8 +216,7 @@ class SoundButton(QFrame):
     def mouseMoveEvent(self, e):
         if (
             self._drag_pos is not None
-            and (e.pos() - self._drag_pos).manhattanLength()
-            >= QApplication.startDragDistance()
+            and (e.pos() - self._drag_pos).manhattanLength() >= QApplication.startDragDistance()
         ):
             self._drag_pos = None
             drag = QDrag(self)
@@ -230,6 +238,7 @@ class SoundButton(QFrame):
 # ---------------------------------------------------------------------------
 # Sound grid
 # ---------------------------------------------------------------------------
+
 
 class SoundGrid(QWidget):
     def __init__(self, app_controller):
@@ -342,9 +351,7 @@ class SoundGrid(QWidget):
         for sound in sounds:
             btn = SoundButton(sound)
             btn.play_requested.connect(self.app_controller.play_sound)
-            btn.stop_requested.connect(
-                lambda s: self.app_controller.engine.stop_sound(s.name)
-            )
+            btn.stop_requested.connect(lambda s: self.app_controller.engine.stop_sound(s.name))
             btn.right_clicked.connect(self._show_context_menu)
             self._flow.addWidget(btn)
             self._buttons.append(btn)
@@ -354,16 +361,16 @@ class SoundGrid(QWidget):
 
     def _filter(self, text: str):
         q = text.lower()
-        self._rebuild_flow([
-            s for s in self.app_controller.config.sounds if q in s.name.lower()
-        ])
+        self._rebuild_flow([s for s in self.app_controller.config.sounds if q in s.name.lower()])
 
     # ---- Add / import ----
 
     def _add_sound_dialog(self):
         paths, _ = QFileDialog.getOpenFileNames(
-            self, "Add Sounds", "",
-            "Audio Files (*.wav *.flac *.ogg *.mp3 *.aiff *.aif);;All Files (*)"
+            self,
+            "Add Sounds",
+            "",
+            "Audio Files (*.wav *.flac *.ogg *.mp3 *.aiff *.aif);;All Files (*)",
         )
         for p in paths:
             self._import_file(p)
@@ -376,8 +383,9 @@ class SoundGrid(QWidget):
         folder = self.app_controller.config.sounds_folder
         if not folder or not Path(folder).is_dir():
             QMessageBox.warning(
-                self, "Scan Folder",
-                "No valid sounds folder configured.\nGo to Settings to set one."
+                self,
+                "Scan Folder",
+                "No valid sounds folder configured.\nGo to Settings to set one.",
             )
             return
         existing = {s.file_path for s in self.app_controller.config.sounds}
@@ -461,8 +469,14 @@ class SoundGrid(QWidget):
 
     def _set_volume(self, sound: Sound):
         val, ok = QInputDialog.getDouble(
-            self, "Set Volume", "Volume (0.0 – 1.0):",
-            value=sound.volume, min=0.0, max=1.0, decimals=2, step=0.05
+            self,
+            "Set Volume",
+            "Volume (0.0 – 1.0):",
+            value=sound.volume,
+            min=0.0,
+            max=1.0,
+            decimals=2,
+            step=0.05,
         )
         if ok:
             sound.volume = val
@@ -471,7 +485,9 @@ class SoundGrid(QWidget):
 
     def _delete_sound(self, sound: Sound):
         reply = QMessageBox.question(
-            self, "Delete Sound", f"Remove '{sound.name}' from library?",
+            self,
+            "Delete Sound",
+            f"Remove '{sound.name}' from library?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
         if reply == QMessageBox.StandardButton.Yes:
@@ -503,9 +519,7 @@ class SoundGrid(QWidget):
             drop_pos = event.position().toPoint()
             target_idx = self._drop_target_idx(drop_pos)
             sounds = self.app_controller.config.sounds
-            src_idx = next(
-                (i for i, s in enumerate(sounds) if s.file_path == src_path), None
-            )
+            src_idx = next((i for i, s in enumerate(sounds) if s.file_path == src_path), None)
             if src_idx is None or src_idx == target_idx:
                 event.ignore()
                 return
@@ -551,6 +565,7 @@ class SoundGrid(QWidget):
 # ---------------------------------------------------------------------------
 # Color helpers
 # ---------------------------------------------------------------------------
+
 
 def _lighten(hex_color: str, amount: float = 0.15) -> str:
     try:

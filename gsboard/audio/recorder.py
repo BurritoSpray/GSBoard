@@ -2,6 +2,7 @@ import threading
 import wave
 from pathlib import Path
 from typing import Optional
+
 import numpy as np
 import sounddevice as sd
 

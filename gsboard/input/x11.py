@@ -6,15 +6,26 @@ from .backend import HotkeyBackend
 
 # X11 KP keysyms for numpad keys (used when NumLock is on)
 _KP_KEYSYMS: Dict[str, int] = {
-    "num_0": 0xffb0, "num_1": 0xffb1, "num_2": 0xffb2, "num_3": 0xffb3,
-    "num_4": 0xffb4, "num_5": 0xffb5, "num_6": 0xffb6, "num_7": 0xffb7,
-    "num_8": 0xffb8, "num_9": 0xffb9,
-    "num_decimal":  0xffae, "num_add":      0xffab, "num_subtract": 0xffad,
-    "num_multiply": 0xffaa, "num_divide":   0xffaf, "num_enter":    0xff8d,
+    "num_0": 0xFFB0,
+    "num_1": 0xFFB1,
+    "num_2": 0xFFB2,
+    "num_3": 0xFFB3,
+    "num_4": 0xFFB4,
+    "num_5": 0xFFB5,
+    "num_6": 0xFFB6,
+    "num_7": 0xFFB7,
+    "num_8": 0xFFB8,
+    "num_9": 0xFFB9,
+    "num_decimal": 0xFFAE,
+    "num_add": 0xFFAB,
+    "num_subtract": 0xFFAD,
+    "num_multiply": 0xFFAA,
+    "num_divide": 0xFFAF,
+    "num_enter": 0xFF8D,
 }
 # Range of keysym values considered "keypad" — 0xff80 … 0xffbf
-_KP_VK_MIN = 0xff80
-_KP_VK_MAX = 0xffbf
+_KP_VK_MIN = 0xFF80
+_KP_VK_MAX = 0xFFBF
 
 
 def _parse_shortcut(shortcut: str, keyboard_module) -> list:

@@ -1,10 +1,9 @@
 import subprocess
 import threading
-from typing import Optional, List, Tuple
+from typing import List, Optional, Tuple
 
 from gsboard.audio.backend import AudioController, PlayHandle
 from gsboard.audio.capabilities import AudioCapabilities, ChannelInfo
-
 
 _PIPEWIRE_CAPABILITIES = AudioCapabilities(
     supports_dual_channels=True,
@@ -24,6 +23,7 @@ _PIPEWIRE_CAPABILITIES = AudioCapabilities(
 # ------------------------------------------------------------------
 # PlayHandle implementation for paplay subprocesses
 # ------------------------------------------------------------------
+
 
 class PaplayHandle(PlayHandle):
     def __init__(self, proc: subprocess.Popen):
@@ -45,6 +45,7 @@ class PaplayHandle(PlayHandle):
 # ------------------------------------------------------------------
 # PipeWire / PulseAudio controller
 # ------------------------------------------------------------------
+
 
 class PipeWireController(AudioController):
     def __init__(self, sink_name: str = "gsboard_sink"):
@@ -164,16 +165,14 @@ class PipeWireController(AudioController):
     # AudioController — playback
     # ------------------------------------------------------------------
 
-    def play_wav(self, wav_bytes: bytes,
-                 device_id: Optional[str]) -> Optional[PaplayHandle]:
+    def play_wav(self, wav_bytes: bytes, device_id: Optional[str]) -> Optional[PaplayHandle]:
         """Spawn a paplay subprocess and feed it the WAV bytes."""
         try:
             cmd = ["paplay"]
             if device_id:
                 cmd.append(f"--device={device_id}")
             cmd.append("/dev/stdin")
-            proc = subprocess.Popen(cmd, stdin=subprocess.PIPE,
-                                    stderr=subprocess.PIPE)
+            proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
 
             label = device_id or "default"
 
@@ -193,8 +192,7 @@ class PipeWireController(AudioController):
                 except Exception:
                     pass
 
-            threading.Thread(target=_feed, args=(proc, wav_bytes),
-                             daemon=True).start()
+            threading.Thread(target=_feed, args=(proc, wav_bytes), daemon=True).start()
             return PaplayHandle(proc)
         except FileNotFoundError:
             print("[PipeWire] paplay not found — install pulseaudio-utils or pipewire-pulse")
@@ -207,8 +205,7 @@ class PipeWireController(AudioController):
     # AudioController — mic passthrough
     # ------------------------------------------------------------------
 
-    def enable_mic_passthrough(self, mic_device_id: str,
-                               volume: float) -> bool:
+    def enable_mic_passthrough(self, mic_device_id: str, volume: float) -> bool:
         return self._enable_mic_passthrough_impl(mic_device_id, volume)
 
     def disable_mic_passthrough(self):
@@ -220,14 +217,18 @@ class PipeWireController(AudioController):
 
     def create_virtual_sink(self) -> bool:
         game_ok = self._create_channel(
-            self.sink_name, self.source_name,
+            self.sink_name,
+            self.source_name,
             "GSBoard Game Mic",
-            "_sink_module_id", "_source_module_id",
+            "_sink_module_id",
+            "_source_module_id",
         )
         chat_ok = self._create_channel(
-            self.chat_sink_name, self.chat_source_name,
+            self.chat_sink_name,
+            self.chat_source_name,
             "GSBoard Chat Mic",
-            "_chat_sink_module_id", "_chat_source_module_id",
+            "_chat_sink_module_id",
+            "_chat_source_module_id",
         )
         return game_ok and chat_ok
 
@@ -244,28 +245,39 @@ class PipeWireController(AudioController):
         try:
             r = subprocess.run(
                 [
-                    "pactl", "load-module", "module-null-sink",
+                    "pactl",
+                    "load-module",
+                    "module-null-sink",
                     f"sink_name={sink_name}",
                     f"sink_properties=device.description={sink_name}",
                     "channel_map=stereo",
                 ],
-                capture_output=True, text=True, check=True, timeout=10,
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=10,
             )
             setattr(self, sink_attr, r.stdout.strip())
 
             r2 = subprocess.run(
                 [
-                    "pactl", "load-module", "module-remap-source",
+                    "pactl",
+                    "load-module",
+                    "module-remap-source",
                     f"source_name={source_name}",
                     f"master={sink_name}.monitor",
                 ],
-                capture_output=True, text=True, check=True, timeout=10,
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=10,
             )
             setattr(self, source_attr, r2.stdout.strip())
 
             subprocess.run(
                 ["pactl", "set-source-description", source_name, display_name],
-                capture_output=True, timeout=5,
+                capture_output=True,
+                timeout=5,
             )
             return True
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
@@ -289,7 +301,10 @@ class PipeWireController(AudioController):
                 try:
                     subprocess.run(
                         ["pactl", "unload-module", mod_id],
-                        capture_output=True, text=True, check=True, timeout=8,
+                        capture_output=True,
+                        text=True,
+                        check=True,
+                        timeout=8,
                     )
                 except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
                     pass
@@ -301,7 +316,9 @@ class PipeWireController(AudioController):
         try:
             r = subprocess.run(
                 ["pactl", "list", "modules", "short"],
-                capture_output=True, text=True, timeout=8,
+                capture_output=True,
+                text=True,
+                timeout=8,
             )
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
             return
@@ -317,7 +334,9 @@ class PipeWireController(AudioController):
                 try:
                     subprocess.run(
                         ["pactl", "unload-module", mod_id],
-                        capture_output=True, text=True, timeout=8,
+                        capture_output=True,
+                        text=True,
+                        timeout=8,
                     )
                 except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
                     pass
@@ -325,13 +344,17 @@ class PipeWireController(AudioController):
     def _unload_orphaned_modules(self):
         """Unload any gsboard pactl modules not tracked in instance variables."""
         gsboard_names = {
-            self.sink_name, self.source_name,
-            self.chat_sink_name, self.chat_source_name,
+            self.sink_name,
+            self.source_name,
+            self.chat_sink_name,
+            self.chat_source_name,
         }
         try:
             r = subprocess.run(
                 ["pactl", "list", "modules", "short"],
-                capture_output=True, text=True, timeout=8,
+                capture_output=True,
+                text=True,
+                timeout=8,
             )
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
             return
@@ -347,7 +370,9 @@ class PipeWireController(AudioController):
                 try:
                     subprocess.run(
                         ["pactl", "unload-module", mod_id],
-                        capture_output=True, text=True, timeout=8,
+                        capture_output=True,
+                        text=True,
+                        timeout=8,
                     )
                 except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
                     pass
@@ -360,7 +385,10 @@ class PipeWireController(AudioController):
         try:
             r = subprocess.run(
                 ["pactl", "list", kind, "short"],
-                capture_output=True, text=True, check=True, timeout=5,
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=5,
             )
             return name in r.stdout
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
@@ -396,7 +424,10 @@ class PipeWireController(AudioController):
         try:
             r = subprocess.run(
                 ["pactl", "list", kind],
-                capture_output=True, text=True, check=True, timeout=10,
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=10,
             )
             name = None
             for line in r.stdout.splitlines():
@@ -422,7 +453,10 @@ class PipeWireController(AudioController):
         try:
             r = subprocess.run(
                 ["pactl", "list", "sources", "short"],
-                capture_output=True, text=True, check=True, timeout=5,
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=5,
             )
             for line in r.stdout.splitlines():
                 if f"{self.sink_name}.monitor" in line:
@@ -437,7 +471,10 @@ class PipeWireController(AudioController):
         try:
             r = subprocess.run(
                 ["pactl", "list", "sinks", "short"],
-                capture_output=True, text=True, check=True, timeout=5,
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=5,
             )
             for line in r.stdout.splitlines():
                 if self.sink_name in line:
@@ -452,8 +489,7 @@ class PipeWireController(AudioController):
     # Mic passthrough via loopback modules (internal)
     # ------------------------------------------------------------------
 
-    def _enable_mic_passthrough_impl(self, mic_source_name: str,
-                                     volume: float) -> bool:
+    def _enable_mic_passthrough_impl(self, mic_source_name: str, volume: float) -> bool:
         """Loops the real mic into both virtual sinks using loopback modules."""
         self._disable_mic_passthrough_impl()
         vol_pa = int(volume * 65536)
@@ -464,13 +500,18 @@ class PipeWireController(AudioController):
             try:
                 r = subprocess.run(
                     [
-                        "pactl", "load-module", "module-loopback",
+                        "pactl",
+                        "load-module",
+                        "module-loopback",
                         f"source={mic_source_name}",
                         f"sink={sink}",
                         f"volume={vol_pa}",
                         "latency_msec=20",
                     ],
-                    capture_output=True, text=True, check=True, timeout=10,
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                    timeout=10,
                 )
                 self._loopback_module_ids.append(r.stdout.strip())
                 success = True
@@ -484,7 +525,10 @@ class PipeWireController(AudioController):
             try:
                 subprocess.run(
                     ["pactl", "unload-module", mod_id],
-                    capture_output=True, text=True, check=True, timeout=8,
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                    timeout=8,
                 )
             except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
                 pass

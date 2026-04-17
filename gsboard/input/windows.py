@@ -24,6 +24,7 @@ _user32 = ctypes.windll.user32 if hasattr(ctypes, "windll") else None
 # Shortcut conversion: pynput format → (win32_modifiers, vk_code)
 # ---------------------------------------------------------------------------
 
+
 def _build_vk_map() -> Dict[str, int]:
     vk: Dict[str, int] = {}
 
@@ -40,55 +41,78 @@ def _build_vk_map() -> Dict[str, int]:
         vk[f"f{i}"] = 0x6F + i
 
     # Navigation / editing
-    vk.update({
-        "backspace":    0x08,
-        "tab":          0x09,
-        "return":       0x0D,
-        "enter":        0x0D,
-        "escape":       0x1B,
-        "esc":          0x1B,
-        "space":        0x20,
-        "page_up":      0x21,
-        "page_down":    0x22,
-        "end":          0x23,
-        "home":         0x24,
-        "left":         0x25,
-        "up":           0x26,
-        "right":        0x27,
-        "down":         0x28,
-        "print_screen": 0x2C,
-        "insert":       0x2D,
-        "delete":       0x2E,
-        # Numpad — token names match what shortcut_editor.py emits.
-        "num0": 0x60, "num1": 0x61, "num2": 0x62, "num3": 0x63,
-        "num4": 0x64, "num5": 0x65, "num6": 0x66, "num7": 0x67,
-        "num8": 0x68, "num9": 0x69,
-        "num_multiply": 0x6A, "num_add": 0x6B, "num_subtract": 0x6D,
-        "num_decimal": 0x6E, "num_divide": 0x6F,
-        # Win32 has no dedicated VK for Numpad Enter — it shares VK_RETURN
-        # and is distinguished only by the extended scancode flag, which
-        # RegisterHotKey ignores. Map to VK_RETURN for parity.
-        "num_enter": 0x0D,
-        # Misc
-        "scroll_lock":  0x91,
-        "pause":        0x13,
-        "caps_lock":    0x14,
-        "num_lock":     0x90,
-        # OEM punctuation (US layout). RegisterHotKey keys by VK, so these
-        # hold for any layout that shares the VK — users on non-US layouts
-        # may see the physical US-position key trigger instead.
-        ";":  0xBA, ":":  0xBA,
-        "=":  0xBB, "+":  0xBB,
-        ",":  0xBC, "<":  0xBC,
-        "-":  0xBD, "_":  0xBD,
-        ".":  0xBE, ">":  0xBE,
-        "/":  0xBF, "?":  0xBF,
-        "`":  0xC0, "~":  0xC0,
-        "[":  0xDB, "{":  0xDB,
-        "\\": 0xDC, "|":  0xDC,
-        "]":  0xDD, "}":  0xDD,
-        "'":  0xDE, '"':  0xDE,
-    })
+    vk.update(
+        {
+            "backspace": 0x08,
+            "tab": 0x09,
+            "return": 0x0D,
+            "enter": 0x0D,
+            "escape": 0x1B,
+            "esc": 0x1B,
+            "space": 0x20,
+            "page_up": 0x21,
+            "page_down": 0x22,
+            "end": 0x23,
+            "home": 0x24,
+            "left": 0x25,
+            "up": 0x26,
+            "right": 0x27,
+            "down": 0x28,
+            "print_screen": 0x2C,
+            "insert": 0x2D,
+            "delete": 0x2E,
+            # Numpad — token names match what shortcut_editor.py emits.
+            "num0": 0x60,
+            "num1": 0x61,
+            "num2": 0x62,
+            "num3": 0x63,
+            "num4": 0x64,
+            "num5": 0x65,
+            "num6": 0x66,
+            "num7": 0x67,
+            "num8": 0x68,
+            "num9": 0x69,
+            "num_multiply": 0x6A,
+            "num_add": 0x6B,
+            "num_subtract": 0x6D,
+            "num_decimal": 0x6E,
+            "num_divide": 0x6F,
+            # Win32 has no dedicated VK for Numpad Enter — it shares VK_RETURN
+            # and is distinguished only by the extended scancode flag, which
+            # RegisterHotKey ignores. Map to VK_RETURN for parity.
+            "num_enter": 0x0D,
+            # Misc
+            "scroll_lock": 0x91,
+            "pause": 0x13,
+            "caps_lock": 0x14,
+            "num_lock": 0x90,
+            # OEM punctuation (US layout). RegisterHotKey keys by VK, so these
+            # hold for any layout that shares the VK — users on non-US layouts
+            # may see the physical US-position key trigger instead.
+            ";": 0xBA,
+            ":": 0xBA,
+            "=": 0xBB,
+            "+": 0xBB,
+            ",": 0xBC,
+            "<": 0xBC,
+            "-": 0xBD,
+            "_": 0xBD,
+            ".": 0xBE,
+            ">": 0xBE,
+            "/": 0xBF,
+            "?": 0xBF,
+            "`": 0xC0,
+            "~": 0xC0,
+            "[": 0xDB,
+            "{": 0xDB,
+            "\\": 0xDC,
+            "|": 0xDC,
+            "]": 0xDD,
+            "}": 0xDD,
+            "'": 0xDE,
+            '"': 0xDE,
+        }
+    )
     return vk
 
 
@@ -112,14 +136,14 @@ def _parse_shortcut(shortcut: str) -> Optional[Tuple[int, int]]:
         _VK_MAP = _build_vk_map()
 
     modifier_map = {
-        "ctrl":    _MOD_CONTROL,
+        "ctrl": _MOD_CONTROL,
         "control": _MOD_CONTROL,
-        "alt":     _MOD_ALT,
-        "shift":   _MOD_SHIFT,
-        "super":   _MOD_WIN,
-        "meta":    _MOD_WIN,
-        "cmd":     _MOD_WIN,
-        "win":     _MOD_WIN,
+        "alt": _MOD_ALT,
+        "shift": _MOD_SHIFT,
+        "super": _MOD_WIN,
+        "meta": _MOD_WIN,
+        "cmd": _MOD_WIN,
+        "win": _MOD_WIN,
     }
 
     mods = _MOD_NOREPEAT
@@ -157,7 +181,7 @@ def _tokenize_shortcut(shortcut: str) -> Optional[list]:
             j = s.find(">", i)
             if j < 0:
                 return None
-            tokens.append(s[i + 1:j].strip())
+            tokens.append(s[i + 1 : j].strip())
             i = j + 1
             if i < n and s[i] == "+":
                 i += 1  # separator after a wrapped modifier/key
@@ -177,6 +201,7 @@ def _tokenize_shortcut(shortcut: str) -> Optional[list]:
 # ---------------------------------------------------------------------------
 # Backend
 # ---------------------------------------------------------------------------
+
 
 class WindowsBackend(HotkeyBackend):
     """
@@ -227,8 +252,10 @@ class WindowsBackend(HotkeyBackend):
                 self._register_count += 1
             else:
                 err = ctypes.get_last_error()
-                print(f"[{self.name}] RegisterHotKey failed for '{shortcut}' "
-                      f"(mods=0x{mods:04x}, vk=0x{vk:02x}, error={err})")
+                print(
+                    f"[{self.name}] RegisterHotKey failed for '{shortcut}' "
+                    f"(mods=0x{mods:04x}, vk=0x{vk:02x}, error={err})"
+                )
 
         self._ready_event.set()
 
@@ -246,7 +273,11 @@ class WindowsBackend(HotkeyBackend):
         msg = ctypes.wintypes.MSG()
         while not self._stop_event.is_set():
             result = _user32.PeekMessageW(
-                ctypes.byref(msg), None, _WM_HOTKEY, _WM_HOTKEY, 1  # PM_REMOVE
+                ctypes.byref(msg),
+                None,
+                _WM_HOTKEY,
+                _WM_HOTKEY,
+                1,  # PM_REMOVE
             )
             if result:
                 hk_id = msg.wParam

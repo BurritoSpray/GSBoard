@@ -1,7 +1,7 @@
 """Abstract base classes for platform-specific audio controllers."""
 
 from abc import ABC, abstractmethod
-from typing import List, Tuple, Optional
+from typing import List, Optional, Tuple
 
 from gsboard.audio.capabilities import AudioCapabilities, ChannelInfo
 
@@ -150,8 +150,7 @@ class AudioController(ABC):
     # ------------------------------------------------------------------
 
     @abstractmethod
-    def play_wav(self, wav_bytes: bytes,
-                 device_id: Optional[str]) -> Optional[PlayHandle]:
+    def play_wav(self, wav_bytes: bytes, device_id: Optional[str]) -> Optional[PlayHandle]:
         """
         Start playing WAV data on the given device asynchronously.
 
@@ -165,8 +164,7 @@ class AudioController(ABC):
     # ------------------------------------------------------------------
 
     @abstractmethod
-    def enable_mic_passthrough(self, mic_device_id: str,
-                               volume: float) -> bool:
+    def enable_mic_passthrough(self, mic_device_id: str, volume: float) -> bool:
         """Route mic input into both virtual sinks. Returns True on success."""
         ...
 

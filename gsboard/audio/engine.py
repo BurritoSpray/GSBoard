@@ -21,7 +21,9 @@ _CHANNELS = 2
 def _to_wav_bytes(data: np.ndarray) -> bytes:
     """Encode a float32 stereo numpy array as a 32-bit float WAV in memory."""
     import io
+
     import soundfile as sf
+
     buf = io.BytesIO()
     sf.write(buf, data, _SAMPLERATE, format="WAV", subtype="FLOAT")
     return buf.getvalue()
@@ -85,8 +87,7 @@ class AudioEngine:
     # Lifecycle                                                            #
     # ------------------------------------------------------------------ #
 
-    def start(self, game_device: Optional[str] = None,
-              chat_device: Optional[str] = None) -> bool:
+    def start(self, game_device: Optional[str] = None, chat_device: Optional[str] = None) -> bool:
         # Streams are created on demand; nothing to initialise here.
         return True
 
@@ -139,8 +140,7 @@ class AudioEngine:
     # Playback                                                             #
     # ------------------------------------------------------------------ #
 
-    def play(self, sound_id: str, file_path: str,
-             volume: float = 1.0) -> Optional[PlayingSound]:
+    def play(self, sound_id: str, file_path: str, volume: float = 1.0) -> Optional[PlayingSound]:
         wav = self._load_wav(file_path, volume)
         if wav is None:
             return None
@@ -185,19 +185,15 @@ class AudioEngine:
 
         def _cleanup():
             with self._lock:
-                for d in (self._game_playing, self._chat_playing,
-                          self._monitor_playing):
+                for d in (self._game_playing, self._chat_playing, self._monitor_playing):
                     if d.get(sound_id) is ps:
                         d.pop(sound_id, None)
 
-        threading.Thread(
-            target=ps._monitor, args=(_cleanup,), daemon=True
-        ).start()
+        threading.Thread(target=ps._monitor, args=(_cleanup,), daemon=True).start()
         return ps
 
     def stop_sound(self, sound_id: str):
-        for playing_dict in (self._game_playing, self._chat_playing,
-                              self._monitor_playing):
+        for playing_dict in (self._game_playing, self._chat_playing, self._monitor_playing):
             with self._lock:
                 ps = playing_dict.pop(sound_id, None)
             if ps:
@@ -210,9 +206,11 @@ class AudioEngine:
 
     def is_playing(self, sound_id: str) -> bool:
         with self._lock:
-            ps = (self._game_playing.get(sound_id) or
-                  self._chat_playing.get(sound_id) or
-                  self._monitor_playing.get(sound_id))
+            ps = (
+                self._game_playing.get(sound_id)
+                or self._chat_playing.get(sound_id)
+                or self._monitor_playing.get(sound_id)
+            )
         return ps is not None and not ps.finished.is_set()
 
     # ------------------------------------------------------------------ #
@@ -250,8 +248,7 @@ class AudioEngine:
         self._wav_cache[cache_key] = wav_bytes
         return wav_bytes
 
-    def _resample(self, data: np.ndarray, orig_sr: int,
-                  target_sr: int) -> np.ndarray:
+    def _resample(self, data: np.ndarray, orig_sr: int, target_sr: int) -> np.ndarray:
         # Linear interpolation — adequate for soundboard effects and avoids a
         # ~70 MB scipy dependency. Artifacts are only audible on pitch-sensitive
         # source material, which this app doesn't target.

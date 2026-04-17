@@ -1,9 +1,9 @@
 import asyncio
 import threading
-from typing import Optional, Callable
+from typing import Callable, Optional
 
-from gsboard.models.sound import MacroConfig
 from gsboard.input.hotkeys import SESSION_TYPE
+from gsboard.models.sound import MacroConfig
 
 
 class MacroEngine:
@@ -14,9 +14,7 @@ class MacroEngine:
 
     def _start_event_loop(self):
         self._loop = asyncio.new_event_loop()
-        self._thread = threading.Thread(
-            target=self._loop.run_forever, daemon=True
-        )
+        self._thread = threading.Thread(target=self._loop.run_forever, daemon=True)
         self._thread.start()
 
     def execute(
@@ -60,9 +58,7 @@ class MacroEngine:
         playing = play_fn(sound_id, file_path, volume)
 
         if playing is not None:
-            await asyncio.get_event_loop().run_in_executor(
-                None, playing.finished.wait
-            )
+            await asyncio.get_event_loop().run_in_executor(None, playing.finished.wait)
         else:
             await asyncio.sleep(0.1)
 
@@ -83,11 +79,13 @@ def _get_keyboard_controller():
     if SESSION_TYPE == "wayland":
         try:
             import evdev
+
             ui = evdev.UInput()
             return _EvdevController(ui)
         except Exception:
             pass
     from pynput.keyboard import Controller
+
     return Controller()
 
 
@@ -97,12 +95,14 @@ def _parse_key(key_str: str):
     if SESSION_TYPE == "wayland":
         try:
             from evdev import ecodes
+
             name = f"KEY_{key_str.upper()}"
             return getattr(ecodes, name, None)
         except ImportError:
             return None
     else:
-        from pynput.keyboard import KeyCode, Key
+        from pynput.keyboard import Key, KeyCode
+
         key_str_lower = key_str.lower()
         for k in Key:
             if k.name.lower() == key_str_lower:
@@ -118,10 +118,12 @@ class _EvdevController:
 
     def press(self, code: int):
         from evdev import ecodes
+
         self._ui.write(ecodes.EV_KEY, code, 1)
         self._ui.syn()
 
     def release(self, code: int):
         from evdev import ecodes
+
         self._ui.write(ecodes.EV_KEY, code, 0)
         self._ui.syn()

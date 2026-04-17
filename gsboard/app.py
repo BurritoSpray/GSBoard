@@ -1,48 +1,54 @@
-import os
 import subprocess
 import sys
 from typing import Optional
-from PyQt6.QtWidgets import QApplication, QSystemTrayIcon, QMenu
+
 from PyQt6.QtGui import QIcon
-from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
-from gsboard.resources import resource_path
-
-from gsboard.models.config import AppConfig
 from gsboard.audio.backend import AudioController
 from gsboard.audio.engine import AudioEngine
-from gsboard.input.hotkeys import HotkeyManager, SESSION_TYPE
-from gsboard.macros.macro_engine import MacroEngine
-from gsboard.models.sound import Sound, MacroConfig
-from gsboard.models.game_profile import GameProfile
 from gsboard.games.detector import ProcessDetector
+from gsboard.input.hotkeys import SESSION_TYPE, HotkeyManager
+from gsboard.macros.macro_engine import MacroEngine
+from gsboard.models.config import AppConfig
+from gsboard.models.game_profile import GameProfile
+from gsboard.models.sound import MacroConfig, Sound
+from gsboard.resources import resource_path
 
 
 def _make_audio_controller(config: AppConfig) -> AudioController:
     """Select the appropriate AudioController for the current platform."""
     if sys.platform == "win32":
         from gsboard.audio.windows import WindowsAudioController
+
         return WindowsAudioController(
             game_sink=config.channel_game_device or None,
             chat_sink=config.channel_chat_device or None,
         )
     # Linux (PipeWire / PulseAudio)
     from gsboard.audio.pipewire import PipeWireController
+
     return PipeWireController(config.virtual_sink_name)
 
 
 def _shortcut_to_tool_key(shortcut: str) -> Optional[str]:
     """Convert a pynput-style shortcut to an xdotool/ydotool key name."""
     _MOD = {
-        "ctrl": "ctrl", "control": "ctrl",
+        "ctrl": "ctrl",
+        "control": "ctrl",
         "alt": "alt",
         "shift": "shift",
-        "super": "super", "meta": "super", "cmd": "super", "win": "super",
+        "super": "super",
+        "meta": "super",
+        "cmd": "super",
+        "win": "super",
     }
     _KEYS = {
         "space": "space",
-        "return": "Return", "enter": "Return",
-        "escape": "Escape", "esc": "Escape",
+        "return": "Return",
+        "enter": "Return",
+        "escape": "Escape",
+        "esc": "Escape",
         "backspace": "BackSpace",
         "delete": "Delete",
         "insert": "Insert",
@@ -50,7 +56,10 @@ def _shortcut_to_tool_key(shortcut: str) -> Optional[str]:
         "end": "End",
         "page_up": "Page_Up",
         "page_down": "Page_Down",
-        "up": "Up", "down": "Down", "left": "Left", "right": "Right",
+        "up": "Up",
+        "down": "Down",
+        "left": "Left",
+        "right": "Right",
         "tab": "Tab",
         "print_screen": "Print",
         "scroll_lock": "Scroll_Lock",
@@ -90,15 +99,25 @@ def _simulate_shortcut(shortcut: str) -> None:
 
     if SESSION_TYPE == "wayland":
         try:
-            subprocess.run(["ydotool", "key", key], check=False,
-                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run(
+                ["ydotool", "key", key],
+                check=False,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
         except FileNotFoundError:
-            print("[pass-through] ydotool not found — "
-                  "install ydotool and start ydotoold for Wayland key simulation")
+            print(
+                "[pass-through] ydotool not found — "
+                "install ydotool and start ydotoold for Wayland key simulation"
+            )
     else:
         try:
-            subprocess.run(["xdotool", "key", key], check=False,
-                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run(
+                ["xdotool", "key", key],
+                check=False,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
         except FileNotFoundError:
             print("[pass-through] xdotool not found")
 
@@ -192,11 +211,11 @@ class AppController:
             def cb():
                 self.play_sound(sound)
                 _simulate_shortcut(shortcut)
+
             return cb
         return lambda: self.play_sound(sound)
 
-    def find_shortcut_conflict(self, shortcut: str,
-                               exclude: str = "") -> Optional[str]:
+    def find_shortcut_conflict(self, shortcut: str, exclude: str = "") -> Optional[str]:
         """Return a label of what already uses *shortcut*, or None if free."""
         if not shortcut or shortcut == exclude:
             return None
@@ -206,8 +225,8 @@ class AppController:
         for sc, label in [
             (self.config.channel_game_shortcut, "Toggle Game Mic"),
             (self.config.channel_chat_shortcut, "Toggle Chat Mic"),
-            (self.config.stop_all_shortcut,     "Stop All Sounds"),
-            (self.config.loopback_shortcut,     "Toggle Loopback"),
+            (self.config.stop_all_shortcut, "Stop All Sounds"),
+            (self.config.loopback_shortcut, "Toggle Loopback"),
         ]:
             if sc == shortcut:
                 return label
@@ -297,7 +316,7 @@ class AppController:
             self._game_macro_active = None
             print("[GameDetector] No matching game detected, using default global macro")
         if self.main_window:
-            games_tab = getattr(self.main_window, 'games_tab', None)
+            games_tab = getattr(self.main_window, "games_tab", None)
             if games_tab:
                 games_tab._update_status()
 
@@ -318,9 +337,7 @@ class AppController:
         self._tray = QSystemTrayIcon(icon, app)
         menu = QMenu()
         show_action = menu.addAction("Show")
-        show_action.triggered.connect(
-            lambda: self.main_window.show() if self.main_window else None
-        )
+        show_action.triggered.connect(lambda: self.main_window.show() if self.main_window else None)
         stop_action = menu.addAction("Stop All Sounds")
         stop_action.triggered.connect(self.stop_all)
         menu.addSeparator()

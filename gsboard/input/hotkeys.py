@@ -15,6 +15,7 @@ from .backend import HotkeyBackend
 
 def _detect_session() -> str:
     import sys
+
     if sys.platform == "win32":
         return "windows"
     xdg = os.environ.get("XDG_SESSION_TYPE", "").lower()
@@ -30,11 +31,14 @@ SESSION_TYPE = _detect_session()
 def _make_backend() -> HotkeyBackend:
     if SESSION_TYPE == "windows":
         from .windows import WindowsBackend
+
         return WindowsBackend()
     if SESSION_TYPE == "wayland":
         from .wayland import WaylandBackend
+
         return WaylandBackend()
     from .x11 import X11Backend
+
     return X11Backend()
 
 

@@ -1,6 +1,6 @@
 import os
-import sys
 import subprocess
+import sys
 import threading
 from typing import Callable, List, Optional
 
@@ -119,7 +119,9 @@ def _get_processes_windows() -> set:
     try:
         result = subprocess.run(
             ["tasklist", "/FO", "CSV", "/NH"],
-            capture_output=True, text=True, check=False,
+            capture_output=True,
+            text=True,
+            check=False,
             creationflags=0x08000000,
         )
         for line in result.stdout.splitlines():
@@ -129,6 +131,7 @@ def _get_processes_windows() -> set:
     except FileNotFoundError:
         pass
     return names
+
 
 if __name__ == "__main__":
     gp = GameProfile(name="test", process_name="PioneerGame.exe", enabled=True)
