@@ -125,6 +125,11 @@ class AppController:
         self.engine.set_chat_enabled(self.config.channel_chat_enabled)
         self.engine.set_monitor_enabled(self.config.monitor_enabled)
         self._start_audio_streams()
+        if self.config.mic_passthrough and self.config.mic_device:
+            self.audio_controller.enable_mic_passthrough(
+                self.config.mic_device,
+                self.config.mic_passthrough_volume,
+            )
         self.hotkey_manager.start()
         self.reload_hotkeys()
         self.reload_game_detection()

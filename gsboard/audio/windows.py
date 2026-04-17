@@ -184,6 +184,15 @@ def _spawn_sounddevice(wav_bytes: bytes,
         print(f"[WindowsAudio] failed to decode WAV: {e}")
         return None
 
+    # sounddevice raises ValueError when the device name exists on more
+    # than one Windows host API (e.g. DirectSound + WASAPI), which silently
+    # kills the playback thread. Resolve to a WASAPI index up-front so
+    # only one match is ever considered.
+    if isinstance(device, str):
+        resolved = _resolve_device_index(device, output=True)
+        if resolved is not None:
+            device = resolved
+
     channels = data.shape[1]
     handle = SounddeviceHandle()
     threading.Thread(
