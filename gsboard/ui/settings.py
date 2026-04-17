@@ -6,15 +6,35 @@ from PyQt6.QtWidgets import (
     QFileDialog, QGroupBox, QSpinBox, QScrollArea, QMessageBox
 )
 from gsboard.ui.shortcut_editor import ShortcutCaptureButton
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QObject, QEvent
+
+
+class _NoWheelFilter(QObject):
+    """Event filter that lets wheel events bubble up to the parent
+    scroll area instead of being consumed by combos/sliders."""
+
+    def eventFilter(self, obj, event):
+        if event.type() == QEvent.Type.Wheel:
+            event.ignore()
+            return True
+        return False
 
 
 class SettingsPanel(QWidget):
     def __init__(self, app_controller):
         super().__init__()
         self.app_controller = app_controller
+        self._no_wheel_filter = _NoWheelFilter(self)
         self._build_ui()
+        self._install_no_wheel()
         self._populate()
+
+    def _install_no_wheel(self):
+        """Stop combos and sliders from stealing wheel events while the
+        user is scrolling the Settings tab."""
+        for cls in (QComboBox, QSlider, QSpinBox):
+            for child in self.findChildren(cls):
+                child.installEventFilter(self._no_wheel_filter)
 
     def _build_ui(self):
         outer = QVBoxLayout(self)
