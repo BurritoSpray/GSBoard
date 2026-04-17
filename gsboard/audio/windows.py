@@ -6,10 +6,12 @@ Virtual mic routing on Windows requires external software such as VB-Cable
 the game/chat channels are unavailable and only the monitor (real headset)
 channel will work.
 
-Mic passthrough is not automatically configured — use VoiceMeeter or route
-manually in the Windows sound settings.
+Mic passthrough is implemented in software: a background thread reads from
+the real microphone and writes the same samples (scaled by the passthrough
+volume) to each active VB-Cable sink.
 """
 
+import contextlib
 import io
 import threading
 from typing import List, Tuple, Optional
@@ -88,6 +90,91 @@ class SounddeviceHandle(PlayHandle):
         self._done_event.wait(timeout=timeout)
 
 
+# ------------------------------------------------------------------
+# Mic passthrough — software mic → virtual cable routing
+# ------------------------------------------------------------------
+
+class _MicPassthrough:
+    """Background thread copying real-mic audio into one or more sinks.
+
+    The thread opens an input stream on the user-chosen mic plus an output
+    stream for every target VB-Cable sink, then loops: read a block, scale
+    by the current volume, write the same block to each sink. Stopping the
+    thread closes all streams and releases the mic so other apps can use it.
+    """
+
+    _BLOCKSIZE = 480  # 10ms at 48kHz — low enough for near-realtime chat
+    _SAMPLERATE = 48000
+    _SINK_CHANNELS = 2  # VB-Cable sinks are stereo
+
+    def __init__(self, mic_device: str, sinks: List[str], volume: float):
+        self._mic_device = mic_device
+        self._sinks = [s for s in sinks if s]
+        self._volume = volume
+        self._volume_lock = threading.Lock()
+        self._stop = threading.Event()
+        self._thread: Optional[threading.Thread] = None
+
+    def set_volume(self, volume: float):
+        with self._volume_lock:
+            self._volume = volume
+
+    def start(self) -> bool:
+        if not self._sinks:
+            return False
+        self._thread = threading.Thread(
+            target=self._run, daemon=True, name="gsboard-mic-passthrough"
+        )
+        self._thread.start()
+        return True
+
+    def stop(self):
+        self._stop.set()
+        if self._thread is not None:
+            self._thread.join(timeout=2.0)
+            self._thread = None
+
+    def _run(self):
+        try:
+            mic_channels = _input_channel_count(self._mic_device)
+            mic_idx = _resolve_device_index(self._mic_device, output=False)
+            sink_ids = [
+                _resolve_device_index(sink, output=True) or sink
+                for sink in self._sinks
+            ]
+            with contextlib.ExitStack() as stack:
+                in_stream = stack.enter_context(sd.InputStream(
+                    device=mic_idx if mic_idx is not None else self._mic_device,
+                    channels=mic_channels,
+                    samplerate=self._SAMPLERATE,
+                    blocksize=self._BLOCKSIZE,
+                    dtype="float32",
+                ))
+                out_streams = [
+                    stack.enter_context(sd.OutputStream(
+                        device=sink_id,
+                        channels=self._SINK_CHANNELS,
+                        samplerate=self._SAMPLERATE,
+                        blocksize=self._BLOCKSIZE,
+                        dtype="float32",
+                    ))
+                    for sink_id in sink_ids
+                ]
+                while not self._stop.is_set():
+                    data, _overflow = in_stream.read(self._BLOCKSIZE)
+                    with self._volume_lock:
+                        vol = self._volume
+                    if vol != 1.0:
+                        data = data * vol
+                    if mic_channels == 1 and self._SINK_CHANNELS == 2:
+                        # Duplicate mono mic into both stereo channels.
+                        data = np.repeat(data, 2, axis=1)
+                    for out in out_streams:
+                        out.write(data)
+        except Exception as e:
+            print(f"[WindowsAudio] mic passthrough stopped: {e}")
+
+
 def _spawn_sounddevice(wav_bytes: bytes,
                        device) -> Optional[SounddeviceHandle]:
     try:
@@ -137,6 +224,7 @@ class WindowsAudioController(AudioController):
             chat_sink if chat_sink in available
             else (available[1] if len(available) > 1 else None)
         )
+        self._passthrough: Optional[_MicPassthrough] = None
 
     # ------------------------------------------------------------------
     # AudioController — capabilities
@@ -149,7 +237,7 @@ class WindowsAudioController(AudioController):
             # Dual channels only possible when at least two VB-Cable devices
             # are installed (the free cable plus a paid add-on, or Potato).
             supports_dual_channels=cable_count >= 2,
-            supports_mic_passthrough=False,
+            supports_mic_passthrough=True,
             supports_virtual_device_management=False,
             supports_user_device_selection=True,
             channels_hint_html=(
@@ -166,9 +254,7 @@ class WindowsAudioController(AudioController):
                 "(free, installed separately). "
                 "Install or uninstall it from Windows Settings."
             ),
-            mic_passthrough_hint=(
-                "Mic passthrough is handled by VB-Cable/VoiceMeeter on Windows"
-            ),
+            mic_passthrough_hint=None,
         )
 
     def list_channel_candidates(self) -> List[Tuple[str, str]]:
@@ -317,15 +403,25 @@ class WindowsAudioController(AudioController):
         return _spawn_sounddevice(wav_bytes, device_id)
 
     # ------------------------------------------------------------------
-    # AudioController — mic passthrough (not supported natively)
+    # AudioController — mic passthrough (software-mixed into VB-Cables)
     # ------------------------------------------------------------------
 
     def enable_mic_passthrough(self, mic_device_id: str,
                                volume: float) -> bool:
-        return False
+        if not mic_device_id:
+            return False
+        sinks = [s for s in (self._game_sink, self._chat_sink) if s]
+        if not sinks:
+            return False
+        if self._passthrough is not None:
+            self._passthrough.stop()
+        self._passthrough = _MicPassthrough(mic_device_id, sinks, volume)
+        return self._passthrough.start()
 
     def disable_mic_passthrough(self):
-        pass
+        if self._passthrough is not None:
+            self._passthrough.stop()
+            self._passthrough = None
 
 
 # ------------------------------------------------------------------
@@ -378,6 +474,47 @@ def _list_vbcable_sinks() -> List[str]:
     except Exception:
         pass
     return seen
+
+
+def _resolve_device_index(name: Optional[str], *, output: bool) -> Optional[int]:
+    """Resolve a device *name* to an index on the preferred host API.
+
+    sounddevice's built-in name-to-index lookup fails with ``ValueError``
+    when the same name exists under multiple Windows host APIs (MME,
+    DirectSound, WASAPI). Resolving against the preferred API up-front
+    side-steps that and keeps streams on the modern API consistently.
+    """
+    if not name:
+        return None
+    api_idx = _preferred_hostapi_index()
+    try:
+        for idx, dev in enumerate(sd.query_devices()):
+            if dev.get("name") != name:
+                continue
+            if api_idx is not None and dev.get("hostapi") != api_idx:
+                continue
+            if output and dev.get("max_output_channels", 0) <= 0:
+                continue
+            if not output and dev.get("max_input_channels", 0) <= 0:
+                continue
+            return idx
+    except Exception:
+        pass
+    return None
+
+
+def _input_channel_count(name: Optional[str]) -> int:
+    """Return the max input channels for *name* (default 1 if not found)."""
+    if not name:
+        return 1
+    idx = _resolve_device_index(name, output=False)
+    if idx is None:
+        return 1
+    try:
+        dev = sd.query_devices(idx)
+        return max(1, min(2, int(dev.get("max_input_channels", 1))))
+    except Exception:
+        return 1
 
 
 def _output_device_present(name: Optional[str]) -> bool:
