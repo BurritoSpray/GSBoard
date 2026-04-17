@@ -1,14 +1,17 @@
 import sys
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QIcon
 
 from gsboard.app import AppController
+from gsboard.resources import resource_path
 from gsboard.ui.main_window import MainWindow
 
 
 def main():
     app = QApplication(sys.argv)
     app.setApplicationName("GSBoard")
+    app.setWindowIcon(QIcon(resource_path("gsboard.png")))
     app.setQuitOnLastWindowClosed(False)
 
     controller = AppController()
