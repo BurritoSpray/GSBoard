@@ -1,0 +1,36 @@
+# Tool config lives here. Package metadata still lives in setup.py.
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+extend-exclude = [
+    "build",
+    "dist",
+    "AppDir",
+    ".venv",
+    "gsboard/resources",
+]
+
+[tool.ruff.lint]
+# Conservative default set — existing code wasn't linted, so aggressive rule
+# packs (N, D, ANN, UP) would drown us. Expand once the baseline is clean.
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "W",   # pycodestyle warnings
+    "I",   # isort
+    "B",   # flake8-bugbear — catches real bugs (mutable defaults, etc.)
+]
+ignore = [
+    "E501",  # line too long — formatter handles this
+    "E741",  # ambiguous variable name (we use `l` in a few audio loops)
+    "B008",  # function call in default arg — fine for Qt signals and types
+    "B027",  # empty method in ABC — we use these as intentional default no-ops
+]
+
+[tool.ruff.lint.per-file-ignores]
+"gsboard/main.py" = ["F401"]  # Qt import needed for its side effect
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
