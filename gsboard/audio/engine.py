@@ -160,6 +160,11 @@ class AudioEngine:
             if self._monitor_enabled:
                 channels.append((self._monitor_device, self._monitor_playing))
 
+        # Drop channels whose device didn't resolve. sounddevice treats a
+        # None device as "system default output" and would leak audio into
+        # the user's headset via a silently-unassigned game/chat channel.
+        channels = [c for c in channels if c[0]]
+
         if not channels:
             ps.finished.set()
             return ps

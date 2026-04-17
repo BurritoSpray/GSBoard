@@ -74,6 +74,20 @@ def _build_vk_map() -> Dict[str, int]:
         "pause":        0x13,
         "caps_lock":    0x14,
         "num_lock":     0x90,
+        # OEM punctuation (US layout). RegisterHotKey keys by VK, so these
+        # hold for any layout that shares the VK — users on non-US layouts
+        # may see the physical US-position key trigger instead.
+        ";":  0xBA, ":":  0xBA,
+        "=":  0xBB, "+":  0xBB,
+        ",":  0xBC, "<":  0xBC,
+        "-":  0xBD, "_":  0xBD,
+        ".":  0xBE, ">":  0xBE,
+        "/":  0xBF, "?":  0xBF,
+        "`":  0xC0, "~":  0xC0,
+        "[":  0xDB, "{":  0xDB,
+        "\\": 0xDC, "|":  0xDC,
+        "]":  0xDD, "}":  0xDD,
+        "'":  0xDE, '"':  0xDE,
     })
     return vk
 
@@ -111,8 +125,12 @@ def _parse_shortcut(shortcut: str) -> Optional[Tuple[int, int]]:
     mods = _MOD_NOREPEAT
     vk: Optional[int] = None
 
-    for part in shortcut.lower().split("+"):
-        token = part.strip().strip("<>").strip()
+    tokens = _tokenize_shortcut(shortcut)
+    if tokens is None:
+        print(f"[Windows] Malformed shortcut '{shortcut}'")
+        return None
+
+    for token in tokens:
         if token in modifier_map:
             mods |= modifier_map[token]
         elif token in _VK_MAP:
@@ -126,6 +144,34 @@ def _parse_shortcut(shortcut: str) -> Optional[Tuple[int, int]]:
         return None
 
     return mods, vk
+
+
+def _tokenize_shortcut(shortcut: str) -> Optional[list]:
+    """Split a pynput-style shortcut into tokens without confusing the "+"
+    separator with a literal "+" key (e.g. ``<ctrl>++`` is Ctrl+Plus)."""
+    s = shortcut.lower()
+    tokens: list = []
+    i, n = 0, len(s)
+    while i < n:
+        if s[i] == "<":
+            j = s.find(">", i)
+            if j < 0:
+                return None
+            tokens.append(s[i + 1:j].strip())
+            i = j + 1
+            if i < n and s[i] == "+":
+                i += 1  # separator after a wrapped modifier/key
+        elif s[i] == "+":
+            tokens.append("+")  # literal "+" key — prior char was a separator
+            i += 1
+        else:
+            j = s.find("+", i)
+            if j < 0:
+                tokens.append(s[i:].strip())
+                break
+            tokens.append(s[i:j].strip())
+            i = j + 1
+    return [t for t in tokens if t]
 
 
 # ---------------------------------------------------------------------------
