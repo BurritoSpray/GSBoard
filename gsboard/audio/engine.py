@@ -7,12 +7,10 @@ play_wav() method, which handles the platform-specific mechanics
 """
 
 import threading
-from math import gcd
 from typing import Dict, List, Optional
 
 import numpy as np
 import soundfile as sf
-from scipy.signal import resample_poly
 
 from gsboard.audio.backend import AudioController, PlayHandle
 
@@ -254,10 +252,19 @@ class AudioEngine:
 
     def _resample(self, data: np.ndarray, orig_sr: int,
                   target_sr: int) -> np.ndarray:
-        g = gcd(orig_sr, target_sr)
-        up, down = target_sr // g, orig_sr // g
-        resampled = resample_poly(data, up, down, axis=0)
-        return resampled.astype("float32")
+        # Linear interpolation — adequate for soundboard effects and avoids a
+        # ~70 MB scipy dependency. Artifacts are only audible on pitch-sensitive
+        # source material, which this app doesn't target.
+        n_old = data.shape[0]
+        if n_old < 2 or orig_sr == target_sr:
+            return data.astype("float32", copy=False)
+        n_new = max(1, int(round(n_old * target_sr / orig_sr)))
+        src_idx = np.linspace(0.0, n_old - 1, n_new, dtype=np.float32)
+        i0 = np.floor(src_idx).astype(np.int64)
+        i1 = np.minimum(i0 + 1, n_old - 1)
+        frac = (src_idx - i0).reshape(-1, 1)
+        resampled = data[i0] * (1.0 - frac) + data[i1] * frac
+        return resampled.astype("float32", copy=False)
 
     def list_output_devices(self) -> list:
         """Returns output devices from the active audio controller."""

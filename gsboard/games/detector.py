@@ -114,10 +114,13 @@ def _get_processes_linux() -> set:
 
 def _get_processes_windows() -> set:
     names = set()
+    # CREATE_NO_WINDOW (0x08000000) suppresses the console flash when the
+    # parent is a windowed (pythonw / --noconsole) build.
     try:
         result = subprocess.run(
             ["tasklist", "/FO", "CSV", "/NH"],
             capture_output=True, text=True, check=False,
+            creationflags=0x08000000,
         )
         for line in result.stdout.splitlines():
             parts = line.strip().strip('"').split('","')

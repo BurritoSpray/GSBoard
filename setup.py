@@ -10,7 +10,6 @@ setup(
         "sounddevice>=0.4",
         "soundfile>=0.12",
         "numpy>=1.24",
-        "scipy>=1.10",
         "pynput>=1.7",
         "evdev>=1.6; sys_platform == 'linux'",
         "dbus-python>=1.3; sys_platform == 'linux'",
