@@ -3,8 +3,10 @@ import subprocess
 import sys
 from typing import Optional
 from PyQt6.QtWidgets import QApplication, QSystemTrayIcon, QMenu
-from PyQt6.QtGui import QIcon, QPixmap, QColor
+from PyQt6.QtGui import QIcon
 from PyQt6.QtCore import Qt
+
+from gsboard.resources import resource_path
 
 from gsboard.models.config import AppConfig
 from gsboard.audio.backend import AudioController
@@ -345,6 +347,4 @@ class AppController:
 
 
 def _make_tray_icon() -> QIcon:
-    px = QPixmap(32, 32)
-    px.fill(QColor("#4a90d9"))
-    return QIcon(px)
+    return QIcon(resource_path("gsboard.png"))
