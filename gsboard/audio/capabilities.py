@@ -48,6 +48,12 @@ class AudioCapabilities:
     do meaningful work. When False, UI should hide the controls rather
     than wire them to silent no-ops."""
 
+    supports_user_device_selection: bool = False
+    """True if the user picks which device backs each channel. When True,
+    ``list_channel_candidates`` returns a non-empty list and the UI
+    exposes dropdowns for the game and chat channels. When False the
+    backend manages its own channel devices (e.g. PipeWire sinks)."""
+
     channels_hint_html: Optional[str] = None
     """Rich-text hint shown above the channel toggles explaining how
     sounds are routed on this backend."""

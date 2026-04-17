@@ -26,6 +26,11 @@ class AppConfig:
         self.channel_chat_enabled: bool = True
         self.channel_game_shortcut: str = ""
         self.channel_chat_shortcut: str = ""
+        # Backend-specific device IDs for each channel (empty = auto-pick).
+        # Only backends that advertise ``supports_user_device_selection``
+        # honour these; other backends manage their own devices.
+        self.channel_game_device: str = ""
+        self.channel_chat_device: str = ""
         self.stop_all_shortcut: str = ""
         self.loopback_shortcut: str = ""
         self.monitor_enabled: bool = True
@@ -50,6 +55,8 @@ class AppConfig:
             "channel_chat_enabled": self.channel_chat_enabled,
             "channel_game_shortcut": self.channel_game_shortcut,
             "channel_chat_shortcut": self.channel_chat_shortcut,
+            "channel_game_device": self.channel_game_device,
+            "channel_chat_device": self.channel_chat_device,
             "stop_all_shortcut": self.stop_all_shortcut,
             "loopback_shortcut": self.loopback_shortcut,
             "monitor_enabled": self.monitor_enabled,
@@ -79,6 +86,8 @@ class AppConfig:
         self.channel_chat_enabled = data.get("channel_chat_enabled", True)
         self.channel_game_shortcut = data.get("channel_game_shortcut", "")
         self.channel_chat_shortcut = data.get("channel_chat_shortcut", "")
+        self.channel_game_device = data.get("channel_game_device", "")
+        self.channel_chat_device = data.get("channel_chat_device", "")
         self.stop_all_shortcut = data.get("stop_all_shortcut", "")
         self.loopback_shortcut = data.get("loopback_shortcut", "")
         self.monitor_enabled = data.get("monitor_enabled", True)

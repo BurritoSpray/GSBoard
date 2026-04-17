@@ -1,3 +1,5 @@
+from typing import Optional
+
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QFormLayout, QLabel,
     QComboBox, QSlider, QPushButton, QCheckBox, QLineEdit,
@@ -122,6 +124,23 @@ class SettingsPanel(QWidget):
         ch_hint.setOpenExternalLinks(True)
         ch_hint.setStyleSheet("color: #aaa; font-size: 11px;")
         ch_form.addRow(ch_hint)
+
+        # Per-channel device mapping — only shown when the backend asks
+        # the user to pick among external virtual cables.
+        self._game_device_combo: Optional[QComboBox] = None
+        self._chat_device_combo: Optional[QComboBox] = None
+        if caps.supports_user_device_selection:
+            self._game_device_combo = QComboBox()
+            self._game_device_combo.currentIndexChanged.connect(
+                lambda _i: self._channel_device_changed("game")
+            )
+            ch_form.addRow("Game device:", self._game_device_combo)
+
+            self._chat_device_combo = QComboBox()
+            self._chat_device_combo.currentIndexChanged.connect(
+                lambda _i: self._channel_device_changed("chat")
+            )
+            ch_form.addRow("Chat device:", self._chat_device_combo)
 
         # Game channel row
         self._game_check = QCheckBox("Game Mic enabled")
@@ -264,6 +283,55 @@ class SettingsPanel(QWidget):
             for i in range(self._mic_combo.count()):
                 if self._mic_combo.itemData(i) == cfg.mic_device:
                     self._mic_combo.setCurrentIndex(i)
+
+        self._refresh_channel_devices()
+
+    def _refresh_channel_devices(self):
+        """Populate the per-channel device dropdowns for backends that ask
+        the user to pick among external virtual cables."""
+        if self._game_device_combo is None or self._chat_device_combo is None:
+            return
+        ac = self.app_controller.audio_controller
+        candidates = ac.list_channel_candidates()
+
+        for combo, current in (
+            (self._game_device_combo, ac.game_sink_id),
+            (self._chat_device_combo, ac.chat_sink_id),
+        ):
+            combo.blockSignals(True)
+            combo.clear()
+            combo.addItem("(none)", "")
+            for device_id, display in candidates:
+                combo.addItem(display, device_id)
+            # Select the backend's current device, if still present.
+            target_idx = 0
+            for i in range(combo.count()):
+                if combo.itemData(i) == (current or ""):
+                    target_idx = i
+                    break
+            combo.setCurrentIndex(target_idx)
+            combo.blockSignals(False)
+
+    def _channel_device_changed(self, channel: str):
+        combo = (self._game_device_combo if channel == "game"
+                 else self._chat_device_combo)
+        if combo is None:
+            return
+        device_id = combo.currentData() or None
+        ac = self.app_controller.audio_controller
+        ac.set_channel_device(channel, device_id)
+
+        cfg = self.app_controller.config
+        if channel == "game":
+            cfg.channel_game_device = device_id or ""
+        else:
+            cfg.channel_chat_device = device_id or ""
+        self.app_controller.save_config()
+        self.app_controller.apply_audio_settings()
+        self._update_vm_status()
+        self.refresh_channel_status()
+        if self.app_controller.main_window is not None:
+            self.app_controller.main_window._update_status()
 
     def _settings_shortcut_buttons(self):
         """Return (label, button) pairs for all shortcut buttons in the Settings panel."""

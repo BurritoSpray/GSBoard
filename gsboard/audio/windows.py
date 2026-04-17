@@ -29,9 +29,18 @@ VBCABLE_B_PURCHASE_URL = (
     "#/30-donation_s-p1_i_m_a_fan"
 )
 
-# Name fragments used to auto-detect VB-Cable devices
-_VBCABLE_GAME_HINTS = ["CABLE Input", "VB-Audio Virtual Cable"]
-_VBCABLE_CHAT_HINTS = ["CABLE Input B", "VB-Audio Cable B"]
+# Name fragments used to auto-detect VB-Cable devices.
+# The free VB-Cable installs "CABLE Input / CABLE Output".  The paid add-ons
+# install "CABLE-A / CABLE-B" or "CABLE-C / CABLE-D" pairs.
+_VBCABLE_HINT_PREFIXES = ("CABLE Input", "CABLE-A Input", "CABLE-B Input",
+                          "CABLE-C Input", "CABLE-D Input")
+
+
+def _source_for_sink(sink_name: str) -> str:
+    """Return the VB-Cable *Output* (source/mic) device name paired with an
+    *Input* (sink) device, so the UI can tell users which mic to pick in
+    their target app."""
+    return sink_name.replace(" Input", " Output", 1)
 
 
 # ------------------------------------------------------------------
@@ -116,12 +125,18 @@ class WindowsAudioController(AudioController):
         game_sink: Optional[str] = None,
         chat_sink: Optional[str] = None,
     ):
-        self._game_sink = game_sink or _detect_output_device(_VBCABLE_GAME_HINTS)
-        self._chat_sink = chat_sink or _detect_output_device(_VBCABLE_CHAT_HINTS)
-        # The "source" seen by games is the VB-Cable Output side — we can't
-        # enumerate it programmatically, so store a descriptive placeholder.
-        self._game_source = "CABLE Output (VB-Audio Virtual Cable)"
-        self._chat_source = "CABLE Output B (VB-Audio Cable B)"
+        available = _list_vbcable_sinks()
+        # Prefer a caller-supplied sink when it's still present on the
+        # system; otherwise fall back to the first detected cable (game)
+        # and the next one (chat), if any.
+        self._game_sink = (
+            game_sink if game_sink in available
+            else (available[0] if available else None)
+        )
+        self._chat_sink = (
+            chat_sink if chat_sink in available
+            else (available[1] if len(available) > 1 else None)
+        )
 
     # ------------------------------------------------------------------
     # AudioController — capabilities
@@ -129,19 +144,20 @@ class WindowsAudioController(AudioController):
 
     @property
     def capabilities(self) -> AudioCapabilities:
+        cable_count = len(_list_vbcable_sinks())
         return AudioCapabilities(
-            # Dual channels only possible when both VB-Cable + VB-Cable B are
-            # present.  Reported dynamically so the UI reflects what the user
-            # actually has installed.
-            supports_dual_channels=bool(self._game_sink and self._chat_sink),
+            # Dual channels only possible when at least two VB-Cable devices
+            # are installed (the free cable plus a paid add-on, or Potato).
+            supports_dual_channels=cable_count >= 2,
             supports_mic_passthrough=False,
             supports_virtual_device_management=False,
+            supports_user_device_selection=True,
             channels_hint_html=(
                 "Sounds are routed through <b>VB-Cable</b>. "
-                "Select <b>CABLE Output</b> as the microphone in your "
-                "target app (game, OBS, etc.). "
-                "The Chat channel requires a second cable "
-                f"(<a href='{VBCABLE_B_PURCHASE_URL}'>VB-Cable B</a>) — "
+                "Select the matching <b>CABLE … Output</b> as the "
+                "microphone in your target app (game, OBS, etc.). "
+                "A second channel requires a second cable "
+                f"(<a href='{VBCABLE_B_PURCHASE_URL}'>VB-Cable A+B</a>) — "
                 "most users only need the Game channel."
             ),
             setup_hint_html=(
@@ -154,6 +170,17 @@ class WindowsAudioController(AudioController):
                 "Mic passthrough is handled by VB-Cable/VoiceMeeter on Windows"
             ),
         )
+
+    def list_channel_candidates(self) -> List[Tuple[str, str]]:
+        return [(name, name) for name in _list_vbcable_sinks()]
+
+    def set_channel_device(self, channel: str, device_id: Optional[str]) -> None:
+        if channel == "game":
+            self._game_sink = device_id or None
+        elif channel == "chat":
+            self._chat_sink = device_id or None
+        else:
+            raise ValueError(f"Unknown channel: {channel!r}")
 
     def get_channel_info(self, channel: str) -> ChannelInfo:
         if channel == "game":
@@ -214,7 +241,7 @@ class WindowsAudioController(AudioController):
 
     @property
     def game_source_id(self) -> Optional[str]:
-        return self._game_source
+        return _source_for_sink(self._game_sink) if self._game_sink else None
 
     @property
     def chat_sink_id(self) -> Optional[str]:
@@ -222,7 +249,7 @@ class WindowsAudioController(AudioController):
 
     @property
     def chat_source_id(self) -> Optional[str]:
-        return self._chat_source
+        return _source_for_sink(self._chat_sink) if self._chat_sink else None
 
     # ------------------------------------------------------------------
     # AudioController — virtual device lifecycle (no-op on Windows)
@@ -305,18 +332,52 @@ class WindowsAudioController(AudioController):
 # Helpers
 # ------------------------------------------------------------------
 
-def _detect_output_device(hints: List[str]) -> Optional[str]:
-    """Return the first output device whose name contains one of *hints*."""
+def _preferred_hostapi_index() -> Optional[int]:
+    """Pick a single Windows host API so each physical device appears once.
+
+    Windows exposes every device through MME, DirectSound, WASAPI and
+    (sometimes) WDM-KS. MME also truncates names to 31 characters, which
+    would otherwise make the same cable look like two different devices.
+    Prefer WASAPI (modern, never truncated); fall back to DirectSound,
+    then MME, then whatever is default.
+    """
+    try:
+        apis = sd.query_hostapis()
+    except Exception:
+        return None
+    preference = ("Windows WASAPI", "Windows DirectSound", "MME")
+    for wanted in preference:
+        for idx, api in enumerate(apis):
+            if api.get("name") == wanted:
+                return idx
+    return None
+
+
+def _list_vbcable_sinks() -> List[str]:
+    """Return the names of all detected VB-Cable *Input* devices.
+
+    Only one host API is enumerated (see ``_preferred_hostapi_index``)
+    so each physical cable is reported exactly once. Order is stable
+    (dictated by ``sounddevice``'s enumeration) and usable as a fallback
+    when the user has not picked a device.
+    """
+    seen: List[str] = []
+    api_idx = _preferred_hostapi_index()
     try:
         for dev in sd.query_devices():
-            if dev.get("max_output_channels", 0) > 0:
-                name = dev.get("name", "")
-                for hint in hints:
-                    if hint.lower() in name.lower():
-                        return name
+            if dev.get("max_output_channels", 0) <= 0:
+                continue
+            if api_idx is not None and dev.get("hostapi") != api_idx:
+                continue
+            name = dev.get("name", "")
+            if not any(name.startswith(prefix)
+                       for prefix in _VBCABLE_HINT_PREFIXES):
+                continue
+            if name not in seen:
+                seen.append(name)
     except Exception:
         pass
-    return None
+    return seen
 
 
 def _output_device_present(name: Optional[str]) -> bool:

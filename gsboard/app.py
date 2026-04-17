@@ -20,7 +20,10 @@ def _make_audio_controller(config: AppConfig) -> AudioController:
     """Select the appropriate AudioController for the current platform."""
     if sys.platform == "win32":
         from gsboard.audio.windows import WindowsAudioController
-        return WindowsAudioController()
+        return WindowsAudioController(
+            game_sink=config.channel_game_device or None,
+            chat_sink=config.channel_chat_device or None,
+        )
     # Linux (PipeWire / PulseAudio)
     from gsboard.audio.pipewire import PipeWireController
     return PipeWireController(config.virtual_sink_name)

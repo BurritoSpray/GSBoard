@@ -49,6 +49,27 @@ class AudioController(ABC):
         ...
 
     # ------------------------------------------------------------------
+    # Channel → device mapping (user-configurable backends only)
+    # ------------------------------------------------------------------
+
+    def list_channel_candidates(self) -> List[Tuple[str, str]]:
+        """Return ``(device_id, display_name)`` pairs that can back a channel.
+
+        Default: empty list — backends that manage their own virtual
+        devices (e.g. PipeWire) don't expose a selection. Backends that
+        rely on pre-existing external virtual cables (e.g. VB-Cable on
+        Windows) override this to list detected cables.
+        """
+        return []
+
+    def set_channel_device(self, channel: str, device_id: Optional[str]) -> None:
+        """Assign a device to a channel (``"game"`` or ``"chat"``).
+
+        Default: no-op. Only backends that return a non-empty list from
+        ``list_channel_candidates`` need to honour this.
+        """
+
+    # ------------------------------------------------------------------
     # Virtual device identifiers
     # ------------------------------------------------------------------
 
