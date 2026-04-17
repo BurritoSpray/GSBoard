@@ -150,14 +150,27 @@ class WindowsBackend(HotkeyBackend):
             print(f"[{self.name}] ctypes.windll not available (not running on Windows)")
             return False
 
-        # Map hotkey_id → callback
         self._id_to_cb: Dict[int, Callable] = {}
-        # Map hotkey_id → shortcut string (for unregistration logging)
         self._id_to_shortcut: Dict[int, str] = {}
         self._stop_event = threading.Event()
+        self._ready_event = threading.Event()
+        self._register_count = 0
+        self._pending_shortcuts = dict(shortcuts)
 
-        registered = 0
-        for hk_id, (shortcut, cb) in enumerate(shortcuts.items(), start=1):
+        self._thread = threading.Thread(
+            target=self._thread_main, daemon=True, name="gsboard-hotkeys"
+        )
+        self._thread.start()
+        # Wait for the thread to finish RegisterHotKey calls before returning,
+        # so callers see an accurate success/failure result.
+        self._ready_event.wait(timeout=5.0)
+        return self._register_count > 0
+
+    def _thread_main(self):
+        # RegisterHotKey posts WM_HOTKEY to the calling thread's queue, and
+        # UnregisterHotKey must be called from that same thread — so both the
+        # registration and the message loop live here.
+        for hk_id, (shortcut, cb) in enumerate(self._pending_shortcuts.items(), start=1):
             parsed = _parse_shortcut(shortcut)
             if parsed is None:
                 continue
@@ -165,26 +178,27 @@ class WindowsBackend(HotkeyBackend):
             if _user32.RegisterHotKey(None, hk_id, mods, vk):
                 self._id_to_cb[hk_id] = cb
                 self._id_to_shortcut[hk_id] = shortcut
-                registered += 1
+                self._register_count += 1
             else:
                 err = ctypes.get_last_error()
                 print(f"[{self.name}] RegisterHotKey failed for '{shortcut}' "
                       f"(mods=0x{mods:04x}, vk=0x{vk:02x}, error={err})")
 
-        if registered == 0:
-            return False
+        self._ready_event.set()
 
-        self._thread = threading.Thread(
-            target=self._message_loop, daemon=True, name="gsboard-hotkeys"
-        )
-        self._thread.start()
-        print(f"[{self.name}] Registered {registered} shortcut(s)")
-        return True
+        if self._register_count == 0:
+            return
+
+        print(f"[{self.name}] Registered {self._register_count} shortcut(s)")
+        try:
+            self._message_loop()
+        finally:
+            for hk_id in list(self._id_to_cb.keys()):
+                _user32.UnregisterHotKey(None, hk_id)
 
     def _message_loop(self):
         msg = ctypes.wintypes.MSG()
         while not self._stop_event.is_set():
-            # PeekMessage with a short timeout so we can check the stop event.
             result = _user32.PeekMessageW(
                 ctypes.byref(msg), None, _WM_HOTKEY, _WM_HOTKEY, 1  # PM_REMOVE
             )
@@ -194,7 +208,6 @@ class WindowsBackend(HotkeyBackend):
                 if cb:
                     threading.Thread(target=cb, daemon=True).start()
             else:
-                # No message — yield the thread briefly to avoid busy-spinning.
                 self._stop_event.wait(timeout=0.05)
 
     def update(self, shortcuts: Dict[str, Callable]) -> bool:
@@ -205,10 +218,6 @@ class WindowsBackend(HotkeyBackend):
         stop_event = getattr(self, "_stop_event", None)
         if stop_event is not None:
             stop_event.set()
-
-        if _user32 is not None:
-            for hk_id in list(getattr(self, "_id_to_cb", {}).keys()):
-                _user32.UnregisterHotKey(None, hk_id)
 
         thread = getattr(self, "_thread", None)
         if thread is not None and thread.is_alive():
