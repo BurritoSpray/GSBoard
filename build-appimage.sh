@@ -31,6 +31,8 @@ pyinstaller \
     --noconfirm \
     --name gsboard \
     --collect-all gsboard \
+    --add-data "gsboard/resources/gsboard.png:gsboard/resources" \
+    --add-data "gsboard/resources/gsboard.ico:gsboard/resources" \
     --hidden-import pynput.keyboard._xorg \
     --hidden-import pynput.mouse._xorg \
     gsboard/main.py
